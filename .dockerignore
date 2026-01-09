@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README.md
+HELP.md
+openspec/
