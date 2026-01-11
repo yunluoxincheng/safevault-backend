@@ -29,6 +29,24 @@ public class WebSocketServiceImpl implements WebSocketService {
     }
 
     @Override
+    public void broadcastShareNotification(ShareNotificationMessage notification) {
+        // 获取所有在线用户
+        var onlineUsers = connectionManager.getAllOnlineUsers();
+
+        // 遍历所有在线用户（排除发送者自己）
+        for (String userId : onlineUsers.keySet()) {
+            // 跳过发送者自己
+            if (userId.equals(notification.getFromUserId())) {
+                continue;
+            }
+            sendShareNotification(userId, notification);
+        }
+
+        log.info("Broadcasting share notification to {} online users: {}",
+                onlineUsers.size() - 1, notification);
+    }
+
+    @Override
     public void broadcastOnlineUser(OnlineUserMessage message) {
         String destination = "/topic/online-users";
         log.info("Broadcasting online user: {}", message);

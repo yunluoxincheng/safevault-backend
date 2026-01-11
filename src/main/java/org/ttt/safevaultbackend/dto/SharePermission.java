@@ -1,5 +1,6 @@
 package org.ttt.safevaultbackend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +21,7 @@ public class SharePermission {
     @Builder.Default
     private boolean canSave = true;
 
+    @JsonProperty("isRevocable")
     @Builder.Default
     private boolean isRevocable = true;
 }

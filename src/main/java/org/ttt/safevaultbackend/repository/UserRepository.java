@@ -55,4 +55,22 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 检查设备ID是否存在
      */
     boolean existsByDeviceId(String deviceId);
+
+    // ========== 零知识架构：邮箱认证相关方法 ==========
+
+    /**
+     * 通过邮箱查找用户（零知识架构主要登录方式）
+     */
+    Optional<User> findByEmail(String email);
+
+    /**
+     * 检查邮箱是否存在
+     */
+    boolean existsByEmail(String email);
+
+    /**
+     * 通过邮箱或用户名搜索
+     */
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))")
+    List<User> searchByEmailOrUsername(@Param("query") String query);
 }

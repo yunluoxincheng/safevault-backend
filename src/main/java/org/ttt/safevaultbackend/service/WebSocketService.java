@@ -14,6 +14,11 @@ public interface WebSocketService {
     void sendShareNotification(String userId, ShareNotificationMessage notification);
 
     /**
+     * 广播分享通知给所有用户
+     */
+    void broadcastShareNotification(ShareNotificationMessage notification);
+
+    /**
      * 广播在线用户状态
      */
     void broadcastOnlineUser(OnlineUserMessage message);

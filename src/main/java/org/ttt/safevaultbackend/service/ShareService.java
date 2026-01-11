@@ -82,6 +82,19 @@ public class ShareService {
         // 记录审计日志
         logShareAction(share, "CREATE_DIRECT_SHARE", fromUser.getUserId());
 
+        // 广播分享通知给所有在线用户（除了发送者自己）
+        ShareNotificationMessage notification = ShareNotificationMessage.builder()
+                .type("NEW_DIRECT_SHARE")
+                .shareId(shareId)
+                .fromUserId(fromUser.getUserId())
+                .fromDisplayName(fromUser.getDisplayName())
+                .message(String.format("%s 分享了一个密码", fromUser.getDisplayName()))
+                .timestamp(System.currentTimeMillis())
+                .build();
+
+        // 遍历所有在线用户发送通知
+        webSocketService.broadcastShareNotification(notification);
+
         // 生成分享 Token
         SharePackage sharePackage = SharePackage.builder()
                 .shareId(shareId)
@@ -268,12 +281,17 @@ public class ShareService {
             throw new BusinessException("SAVE_NOT_ALLOWED", "此分享不允许保存");
         }
 
-        if (!share.getToUser().getUserId().equals(userId)) {
-            throw new BusinessException("ACCESS_DENIED", "无权访问此分享");
+        // 检查访问权限
+        if (share.getToUser() != null) {
+            // 用户对用户分享，需要验证接收方
+            if (!share.getToUser().getUserId().equals(userId)) {
+                throw new BusinessException("ACCESS_DENIED", "无权访问此分享");
+            }
+            // 更新状态为已接受
+            share.setStatus(ShareStatus.ACCEPTED);
+            shareRepository.save(share);
         }
-
-        share.setStatus(ShareStatus.ACCEPTED);
-        shareRepository.save(share);
+        // 云端直接分享（toUser 为 null），所有人都可以保存，不需要更新状态
 
         logShareAction(share, "SAVE_SHARED_PASSWORD", userId);
     }
@@ -292,12 +310,30 @@ public class ShareService {
 
     /**
      * 获取接收的分享
+     * 包含：1. 用户对用户分享 2. 所有活跃的云端直接分享
      */
     @Transactional(readOnly = true)
     public List<ReceivedShareResponse> getReceivedShares(String userId) {
-        List<PasswordShare> shares = shareRepository.findByToUser_UserIdOrderByCreatedAtDesc(userId);
+        // 获取用户接收的分享（用户对用户、附近用户）
+        List<PasswordShare> userShares = shareRepository.findByToUser_UserIdOrderByCreatedAtDesc(userId);
 
-        return shares.stream()
+        // 获取所有活跃的云端直接分享（所有人可见）
+        List<PasswordShare> directShares = shareRepository.findActiveDirectShares(LocalDateTime.now());
+
+        // 合并并去重（使用 Set 避免重复）
+        List<PasswordShare> allShares = new java.util.ArrayList<>(userShares);
+
+        // 添加云端直接分享（排除自己创建的）
+        for (PasswordShare directShare : directShares) {
+            if (!directShare.getFromUser().getUserId().equals(userId)) {
+                allShares.add(directShare);
+            }
+        }
+
+        // 按创建时间排序
+        allShares.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+
+        return allShares.stream()
                 .map(this::mapToShareResponse)
                 .collect(Collectors.toList());
     }

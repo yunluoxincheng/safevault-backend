@@ -59,4 +59,10 @@ public interface PasswordShareRepository extends JpaRepository<PasswordShare, St
      */
     @Query("SELECT ps FROM PasswordShare ps WHERE ps.status IN ('PENDING', 'ACTIVE', 'ACCEPTED') AND ps.expiresAt < :currentTime")
     List<PasswordShare> findExpiredShares(@Param("currentTime") LocalDateTime currentTime);
+
+    /**
+     * 查找所有活跃的云端直接分享
+     */
+    @Query("SELECT ps FROM PasswordShare ps WHERE ps.shareType = 'DIRECT' AND ps.status = 'ACTIVE' AND ps.expiresAt > :currentTime ORDER BY ps.createdAt DESC")
+    List<PasswordShare> findActiveDirectShares(@Param("currentTime") LocalDateTime currentTime);
 }

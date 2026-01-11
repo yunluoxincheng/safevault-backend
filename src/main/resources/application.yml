@@ -4,6 +4,12 @@ spring:
   profiles:
     active: dev
 
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: true  # 将日期序列化为时间戳
+    time-zone: GMT+8
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -22,6 +28,12 @@ server:
   port: 8080
   servlet:
     context-path: /api
+  ssl:
+    enabled: true
+    key-store: classpath:keystore.p12
+    key-store-password: 123456
+    key-store-type: PKCS12
+    key-alias: safevault
 
 # JWT Configuration
 jwt:
