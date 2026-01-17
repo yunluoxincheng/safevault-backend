@@ -9,12 +9,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.ttt.safevaultbackend.dto.request.*;
 import org.ttt.safevaultbackend.dto.response.AuthResponse;
-import org.ttt.safevaultbackend.dto.response.LoginPrecheckResponse;
+import org.ttt.safevaultbackend.dto.response.CompleteRegistrationResponse;
+import org.ttt.safevaultbackend.dto.response.DeviceListResponse;
+import org.ttt.safevaultbackend.dto.response.EmailLoginResponse;
+import org.ttt.safevaultbackend.dto.response.EmailRegistrationResponse;
+import org.ttt.safevaultbackend.dto.response.LogoutResponse;
+import org.ttt.safevaultbackend.dto.response.RemoveDeviceResponse;
+import org.ttt.safevaultbackend.dto.response.VerifyEmailResponse;
+import org.ttt.safevaultbackend.dto.DeviceInfo;
 import org.ttt.safevaultbackend.service.AuthService;
 
 /**
  * 认证控制器
- * 支持旧的设备 ID 认证和新的零知识邮箱认证
+ * 支持旧的设备 ID 认证和新的邮箱认证
  */
 @RestController
 @RequestMapping("/v1/auth")
@@ -57,26 +64,92 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    // ========== 零知识架构认证 ==========
+    // ========== 统一邮箱认证 API ==========
 
-    @PostMapping("/register-zero-knowledge")
-    @Operation(summary = "零知识用户注册", description = "使用邮箱和主密码验证器注册新用户（零知识架构）")
-    public ResponseEntity<AuthResponse> registerZeroKnowledge(@Valid @RequestBody ZeroKnowledgeRegisterRequest request) {
-        AuthResponse response = authService.registerZeroKnowledge(request);
+    @PostMapping("/register-email")
+    @Operation(summary = "邮箱注册（第一步）", description = "使用邮箱和用户名发起注册，发送验证邮件")
+    public ResponseEntity<EmailRegistrationResponse> registerWithEmail(
+            @Valid @RequestBody EmailRegistrationRequest request) {
+        EmailRegistrationResponse response = authService.registerWithEmail(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PostMapping("/login/precheck")
-    @Operation(summary = "登录预检查", description = "零知识登录第一步：获取验证器和 Salt")
-    public ResponseEntity<LoginPrecheckResponse> loginPrecheck(@Valid @RequestBody LoginPrecheckRequest request) {
-        LoginPrecheckResponse response = authService.loginPrecheck(request);
+    @PostMapping("/verify-email")
+    @Operation(summary = "验证邮箱", description = "使用验证令牌验证邮箱")
+    public ResponseEntity<VerifyEmailResponse> verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest request) {
+        VerifyEmailResponse response = authService.verifyEmail(request);
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/login/verify")
-    @Operation(summary = "登录验证", description = "零知识登录第二步：验证密码并获取令牌")
-    public ResponseEntity<AuthResponse> loginVerify(@Valid @RequestBody LoginVerifyRequest request) {
-        AuthResponse response = authService.loginVerify(request);
+    @PostMapping("/resend-verification")
+    @Operation(summary = "重新发送验证邮件", description = "重新发送邮箱验证邮件")
+    public ResponseEntity<EmailRegistrationResponse> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request) {
+        EmailRegistrationResponse response = authService.resendVerificationEmail(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/complete-registration")
+    @Operation(summary = "完成注册", description = "邮箱验证后设置主密码并完成注册")
+    public ResponseEntity<CompleteRegistrationResponse> completeRegistration(
+            @Valid @RequestBody CompleteRegistrationRequest request) {
+        CompleteRegistrationResponse response = authService.completeRegistration(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/login-by-email")
+    @Operation(summary = "邮箱登录", description = "使用邮箱和派生密钥签名登录")
+    public ResponseEntity<EmailLoginResponse> loginByEmail(
+            @Valid @RequestBody LoginByEmailRequest request) {
+        EmailLoginResponse response = authService.loginByEmail(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "注销登录", description = "清除服务器端会话")
+    public ResponseEntity<LogoutResponse> logout(
+            @io.swagger.v3.oas.annotations.Parameter(description = "用户 ID（从 JWT Token 中获取）")
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Valid @RequestBody LogoutRequest request) {
+        // 从 Authorization header 中提取令牌
+        String token = null;
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            token = authorization.replace("Bearer ", "");
+        }
+        LogoutResponse response = authService.logout(userId, token, request);
+        return ResponseEntity.ok(response);
+    }
+
+    // ========== 设备管理 API ==========
+
+    @GetMapping("/devices")
+    @Operation(summary = "获取设备列表", description = "获取当前用户的所有设备列表")
+    public ResponseEntity<DeviceListResponse> getDevices(
+            @io.swagger.v3.oas.annotations.Parameter(description = "用户 ID（从 JWT Token 中获取）")
+            @RequestHeader("X-User-Id") String userId) {
+        java.util.List<DeviceInfo> devices = authService.getUserDevices(userId);
+        DeviceListResponse response = DeviceListResponse.builder()
+                .devices(devices)
+                .totalDevices(devices.size())
+                .build();
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/devices/{deviceId}")
+    @Operation(summary = "移除设备", description = "移除指定的设备")
+    public ResponseEntity<RemoveDeviceResponse> removeDevice(
+            @io.swagger.v3.oas.annotations.Parameter(description = "用户 ID（从 JWT Token 中获取）")
+            @RequestHeader("X-User-Id") String userId,
+            @io.swagger.v3.oas.annotations.Parameter(description = "要移除的设备 ID")
+            @PathVariable String deviceId) {
+        boolean removed = authService.removeDevice(userId, deviceId);
+        RemoveDeviceResponse response = RemoveDeviceResponse.builder()
+                .success(removed)
+                .message(removed ? "设备已成功移除" : "设备不存在或移除失败")
+                .removedDeviceId(deviceId)
+                .build();
         return ResponseEntity.ok(response);
     }
 }

@@ -24,6 +24,23 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+
+  mail:
+    host: smtpdm.aliyun.com
+    port: 465
+    username: verify@mail.safevaultapp.top
+    password: sAZD2f64Ii90R9
+    from: verify@mail.safevaultapp.top
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+
 server:
   port: 8080
   servlet:
@@ -48,6 +65,18 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     enabled: true
+
+# N8N Email Service Configuration (已废弃，改为直接使用 SMTP)
+app:
+  n8n:
+    webhook-url: frp-hat.com:49475
+
+# Spring Mail Configuration (阿里云邮件推送)
+
+# Email Verification Configuration
+email:
+  verification:
+    token-expiration-minutes: 10
 
 # Logging
 logging:

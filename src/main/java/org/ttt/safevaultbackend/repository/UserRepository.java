@@ -73,4 +73,11 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Query("SELECT u FROM User u WHERE LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))")
     List<User> searchByEmailOrUsername(@Param("query") String query);
+
+    // ========== 邮箱验证相关方法 ==========
+
+    /**
+     * 通过验证令牌查找用户
+     */
+    Optional<User> findByVerificationToken(String verificationToken);
 }

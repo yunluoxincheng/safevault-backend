@@ -8,10 +8,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.ttt.safevaultbackend.dto.request.UploadPrivateKeyRequest;
 import org.ttt.safevaultbackend.dto.request.VaultInitRequest;
 import org.ttt.safevaultbackend.dto.request.VaultSyncRequest;
+import org.ttt.safevaultbackend.dto.response.PrivateKeyResponse;
+import org.ttt.safevaultbackend.dto.response.UploadPrivateKeyResponse;
 import org.ttt.safevaultbackend.dto.response.VaultResponse;
 import org.ttt.safevaultbackend.dto.response.VaultSyncResponse;
+import org.ttt.safevaultbackend.service.PrivateKeyService;
 import org.ttt.safevaultbackend.service.VaultService;
 
 /**
@@ -25,6 +29,7 @@ import org.ttt.safevaultbackend.service.VaultService;
 public class VaultController {
 
     private final VaultService vaultService;
+    private final PrivateKeyService privateKeyService;
 
     @GetMapping
     @Operation(summary = "获取密码库", description = "获取用户的加密密码库数据")
@@ -61,6 +66,36 @@ public class VaultController {
             @Parameter(description = "用户 ID（从 JWT Token 中获取）")
             @RequestHeader("X-User-Id") String userId) {
         vaultService.deleteVault(userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ========== 私钥管理端点 ==========
+
+    @PostMapping("/private-key")
+    @Operation(summary = "上传加密私钥", description = "上传用户的加密私钥到云端，支持版本控制")
+    public ResponseEntity<UploadPrivateKeyResponse> uploadPrivateKey(
+            @Parameter(description = "用户 ID（从 JWT Token 中获取）")
+            @RequestHeader("X-User-Id") String userId,
+            @Valid @RequestBody UploadPrivateKeyRequest request) {
+        UploadPrivateKeyResponse response = privateKeyService.uploadPrivateKey(userId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/private-key")
+    @Operation(summary = "获取加密私钥", description = "从云端获取用户的加密私钥")
+    public ResponseEntity<PrivateKeyResponse> getPrivateKey(
+            @Parameter(description = "用户 ID（从 JWT Token 中获取）")
+            @RequestHeader("X-User-Id") String userId) {
+        PrivateKeyResponse response = privateKeyService.getPrivateKey(userId);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/private-key")
+    @Operation(summary = "删除加密私钥", description = "从云端删除用户的加密私钥")
+    public ResponseEntity<Void> deletePrivateKey(
+            @Parameter(description = "用户 ID（从 JWT Token 中获取）")
+            @RequestHeader("X-User-Id") String userId) {
+        privateKeyService.deletePrivateKey(userId);
         return ResponseEntity.noContent().build();
     }
 }

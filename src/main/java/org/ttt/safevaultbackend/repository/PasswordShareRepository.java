@@ -1,6 +1,7 @@
 package org.ttt.safevaultbackend.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -65,4 +66,22 @@ public interface PasswordShareRepository extends JpaRepository<PasswordShare, St
      */
     @Query("SELECT ps FROM PasswordShare ps WHERE ps.shareType = 'DIRECT' AND ps.status = 'ACTIVE' AND ps.expiresAt > :currentTime ORDER BY ps.createdAt DESC")
     List<PasswordShare> findActiveDirectShares(@Param("currentTime") LocalDateTime currentTime);
+
+    /**
+     * 撤销用户创建的所有活动分享
+     * @param userId 用户ID
+     * @return 撤销的分享数量
+     */
+    @Modifying
+    @Query("UPDATE PasswordShare ps SET ps.status = 'REVOKED' WHERE ps.fromUser.userId = :userId AND ps.status IN ('PENDING', 'ACTIVE', 'ACCEPTED')")
+    int revokeActiveSharesByFromUser(@Param("userId") String userId);
+
+    /**
+     * 删除用户相关的所有分享记录（创建的和接收的）
+     * @param userId 用户ID
+     * @return 删除的记录数
+     */
+    @Modifying
+    @Query("DELETE FROM PasswordShare ps WHERE ps.fromUser.userId = :userId OR ps.toUser.userId = :userId")
+    long deleteAllByFromUserOrToUser(@Param("userId") String userId);
 }

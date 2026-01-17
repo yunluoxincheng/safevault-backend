@@ -9,6 +9,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -24,12 +25,15 @@ public class CryptoService {
     private static final int GCM_IV_LENGTH = 12;   // 字节
     private static final int AES_KEY_SIZE = 256;   // 位
 
+    // 签名时间戳有效期（毫秒）
+    private static final long SIGNATURE_TIMESTAMP_VALIDITY = 5 * 60 * 1000; // 5分钟
+
     /**
-     * 生成用户密钥对（ECDH）
+     * 生成用户密钥对（RSA）
      */
     public KeyPair generateUserKeyPair() throws Exception {
-        java.security.KeyPairGenerator keyPairGenerator = java.security.KeyPairGenerator.getInstance("EC");
-        keyPairGenerator.initialize(521); // 使用 P-521 曲线
+        java.security.KeyPairGenerator keyPairGenerator = java.security.KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(2048);
         return keyPairGenerator.generateKeyPair();
     }
 
@@ -123,5 +127,56 @@ public class CryptoService {
     public boolean verifyShareSignature(String data, String signature, String secret) throws Exception {
         String expectedSignature = generateShareSignature(data, secret);
         return expectedSignature.equals(signature);
+    }
+
+    /**
+     * 使用公钥验证签名
+     * 
+     * @param data 原始数据
+     * @param signature Base64编码的签名
+     * @param publicKey 用户公钥
+     * @return 验证是否成功
+     */
+    public boolean verifySignature(String data, String signature, String publicKey) {
+        try {
+            // 解码公钥
+            byte[] publicKeyBytes = Base64.getDecoder().decode(publicKey);
+            java.security.KeyFactory keyFactory = java.security.KeyFactory.getInstance("RSA");
+            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
+            PublicKey pubKey = keyFactory.generatePublic(keySpec);
+
+            // 验证签名
+            byte[] signatureBytes = Base64.getDecoder().decode(signature);
+            java.security.Signature sig = java.security.Signature.getInstance("SHA256withRSA");
+            sig.initVerify(pubKey);
+            sig.update(data.getBytes(StandardCharsets.UTF_8));
+            return sig.verify(signatureBytes);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 验证签名和时间戳
+     * 
+     * @param data 原始数据
+     * @param signature Base64编码的签名
+     * @param publicKey 用户公钥（Base64编码）
+     * @param timestamp 时间戳（毫秒）
+     * @return 验证是否成功
+     */
+    public boolean verifySignatureWithTimestamp(String data, String signature, String publicKey, Long timestamp) {
+        // 验证时间戳
+        if (timestamp == null) {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        if (Math.abs(now - timestamp) > SIGNATURE_TIMESTAMP_VALIDITY) {
+            return false;
+        }
+
+        // 验证签名
+        return verifySignature(data, signature, publicKey);
     }
 }

@@ -1,6 +1,7 @@
 package org.ttt.safevaultbackend.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -55,4 +56,13 @@ public interface OnlineUserRepository extends JpaRepository<OnlineUser, String> 
      * 删除超时的在线用户
      */
     void deleteByLastSeenBefore(LocalDateTime threshold);
+
+    /**
+     * 删除指定用户的在线记录
+     * @param userId 用户ID
+     * @return 删除的记录数
+     */
+    @Modifying
+    @Query("DELETE FROM OnlineUser ou WHERE ou.userId = :userId")
+    int deleteByUserId(@Param("userId") String userId);
 }
