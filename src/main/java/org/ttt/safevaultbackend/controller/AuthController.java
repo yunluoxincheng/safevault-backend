@@ -152,4 +152,38 @@ public class AuthController {
                 .build();
         return ResponseEntity.ok(response);
     }
+
+    // ========== 调试 API ==========
+
+    @GetMapping("/debug/pending-user")
+    @Operation(summary = "调试：获取待验证用户状态", description = "根据邮箱或token查询Redis中的待验证用户状态")
+    public ResponseEntity<java.util.Map<String, Object>> debugPendingUser(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String token) {
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("timestamp", java.time.LocalDateTime.now());
+
+        if (email != null && !email.isEmpty()) {
+            result.put("query", "email: " + email);
+            result.put("pendingUser", authService.debugGetPendingUserByEmail(email));
+        } else if (token != null && !token.isEmpty()) {
+            result.put("query", "token: " + token);
+            result.put("pendingUser", authService.debugGetPendingUserByToken(token));
+        } else {
+            result.put("error", "请提供 email 或 token 参数");
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/debug/redis-raw")
+    @Operation(summary = "调试：获取 Redis 原始数据", description = "查看 Redis 中存储的原始值和类型")
+    public ResponseEntity<java.util.Map<String, Object>> debugRedisRaw(
+            @RequestParam String email) {
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("timestamp", java.time.LocalDateTime.now());
+        result.put("email", email);
+        result.put("rawData", authService.debugGetRedisRawValue(email));
+        return ResponseEntity.ok(result);
+    }
 }

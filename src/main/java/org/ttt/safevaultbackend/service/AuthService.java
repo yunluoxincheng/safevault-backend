@@ -13,12 +13,14 @@ import org.ttt.safevaultbackend.dto.response.EmailRegistrationResponse;
 import org.ttt.safevaultbackend.dto.response.LogoutResponse;
 import org.ttt.safevaultbackend.dto.response.VerifyEmailResponse;
 import org.ttt.safevaultbackend.dto.DeviceInfo;
+import org.ttt.safevaultbackend.dto.PendingUser;
 import org.ttt.safevaultbackend.entity.User;
 import org.ttt.safevaultbackend.exception.BusinessException;
 import org.ttt.safevaultbackend.exception.ResourceNotFoundException;
 import org.ttt.safevaultbackend.repository.UserRepository;
 import org.ttt.safevaultbackend.security.JwtTokenProvider;
 import org.ttt.safevaultbackend.service.EmailService;
+import org.ttt.safevaultbackend.service.PendingUserService;
 import org.ttt.safevaultbackend.service.VerificationTokenService;
 
 import java.time.LocalDateTime;
@@ -40,6 +42,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final EmailService emailService;
     private final VerificationTokenService verificationTokenService;
+    private final PendingUserService pendingUserService;
     private final CryptoService cryptoService;
     private final TokenRevokeService tokenRevokeService;
 
@@ -182,41 +185,80 @@ public class AuthService {
 
     /**
      * 邮箱注册第一步：发起注册并发送验证邮件
+     * 数据先存入 Redis，验证成功后才写入数据库
      *
      * @param request 邮箱和用户名
      * @return 注册响应
      */
-    @Transactional
     public EmailRegistrationResponse registerWithEmail(EmailRegistrationRequest request) {
-        // 检查邮箱是否已存在
+        // 检查邮箱是否已在数据库中注册
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new BusinessException("EMAIL_ALREADY_EXISTS", "该邮箱已被注册");
         }
 
-        // 检查用户名是否已存在
+        // 检查用户名是否已被使用
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new BusinessException("USERNAME_ALREADY_EXISTS", "该用户名已被使用");
         }
 
-        // 创建待验证用户（邮箱未验证状态）
-        User user = User.builder()
-                .userId(UUID.randomUUID().toString())
-                .email(request.getEmail())
-                .username(request.getUsername())
-                .displayName(request.getUsername()) // 默认使用用户名作为显示名称
-                .emailVerified(false)
-                .build();
+        // 检查邮箱是否已有待验证记录
+        PendingUser existingPendingUser = pendingUserService.getPendingUserByEmail(request.getEmail());
+        if (existingPendingUser != null) {
+            // 检查是否过期
+            if (existingPendingUser.isTokenExpired()) {
+                // 过期：自动清理并继续注册流程
+                log.info("待验证记录已过期，自动清理: email={}", request.getEmail());
+                pendingUserService.deletePendingUser(request.getEmail());
+            } else {
+                // 未过期：检查用户名是否一致
+                if (!existingPendingUser.getUsername().equals(request.getUsername())) {
+                    throw new BusinessException("USERNAME_MISMATCH",
+                            "该邮箱已有待验证的注册申请（用户名: " + existingPendingUser.getUsername() + "），请使用相同用户名或等待过期");
+                }
 
-        user = userRepository.save(user);
+                // 检查是否可以重发（60秒冷却）
+                if (!existingPendingUser.canResendEmail()) {
+                    long waitSeconds = 60 - java.time.Duration.between(
+                            existingPendingUser.getLastEmailSentAt(),
+                            java.time.LocalDateTime.now()
+                    ).getSeconds();
+                    throw new BusinessException("RESEND_TOO_SOON",
+                            "验证邮件已发送，请查收。如需重发，请等待 " + waitSeconds + " 秒后重试");
+                }
+
+                // 自动重发验证邮件
+                log.info("检测到已有待验证记录，自动重发邮件: email={}", request.getEmail());
+                return resendVerificationEmail(new ResendVerificationRequest(request.getEmail()));
+            }
+        }
 
         // 生成验证令牌
-        String token = verificationTokenService.generateVerificationToken(request.getEmail());
+        String token = pendingUserService.generateVerificationToken();
+
+        // 计算过期时间
+        LocalDateTime tokenExpiresAt = LocalDateTime.now().plusMinutes(tokenExpirationMinutes);
+
+        // 创建待验证用户（存入 Redis）
+        PendingUser pendingUser = PendingUser.builder()
+                .email(request.getEmail())
+                .username(request.getUsername())
+                .displayName(request.getUsername())
+                .verificationToken(token)
+                .tokenExpiresAt(tokenExpiresAt)
+                .createdAt(LocalDateTime.now())
+                .lastEmailSentAt(LocalDateTime.now())
+                .build();
+
+        // 保存到 Redis
+        pendingUserService.savePendingUser(pendingUser);
 
         // 构建验证链接（Deep Link）
         String verificationUrl = "safevault://verify-email?token=" + token;
 
         // 发送验证邮件
         boolean emailSent = emailService.sendVerificationEmail(request.getEmail(), verificationUrl);
+
+        log.info("发起邮箱注册: email={}, username={}, token={}", request.getEmail(), request.getUsername(), token);
 
         return EmailRegistrationResponse.builder()
                 .message("注册成功，请查收验证邮件")
@@ -228,6 +270,7 @@ public class AuthService {
 
     /**
      * 验证邮箱
+     * 从 Redis 获取待验证用户，验证成功后写入数据库
      *
      * @param request 验证令牌
      * @return 验证响应
@@ -235,8 +278,77 @@ public class AuthService {
     @Transactional
     public VerifyEmailResponse verifyEmail(VerifyEmailRequest request) {
         try {
-            // 验证令牌并标记邮箱已验证，返回用户对象
-            User user = verificationTokenService.verifyEmailAndConfirm(request.getToken());
+            log.info("收到邮箱验证请求: token={}", request.getToken());
+
+            // 从 Redis 获取待验证用户
+            PendingUser pendingUser = pendingUserService.getPendingUserByToken(request.getToken());
+
+            if (pendingUser == null) {
+                log.warn("验证失败: 未找到待验证用户, token={}", request.getToken());
+                return VerifyEmailResponse.builder()
+                        .success(false)
+                        .message("验证令牌无效或已过期")
+                        .build();
+            }
+
+            log.info("找到待验证用户: email={}, username={}, tokenExpiresAt={}, createdAt={}",
+                    pendingUser.getEmail(),
+                    pendingUser.getUsername(),
+                    pendingUser.getTokenExpiresAt(),
+                    pendingUser.getCreatedAt());
+
+            // 检查令牌是否过期
+            if (pendingUser.isTokenExpired()) {
+                log.warn("验证失败: 令牌已过期, email={}, tokenExpiresAt={}, now={}",
+                        pendingUser.getEmail(),
+                        pendingUser.getTokenExpiresAt(),
+                        LocalDateTime.now());
+                // 清理过期的待验证用户
+                pendingUserService.deletePendingUser(pendingUser.getEmail());
+                return VerifyEmailResponse.builder()
+                        .success(false)
+                        .message("验证令牌已过期，请重新注册")
+                        .build();
+            }
+
+            // 再次检查数据库中是否已存在该邮箱（防止并发注册）
+            if (userRepository.existsByEmail(pendingUser.getEmail())) {
+                log.warn("验证失败: 该邮箱已被注册, email={}", pendingUser.getEmail());
+                // 清理 Redis 中的数据
+                pendingUserService.deletePendingUser(pendingUser.getEmail());
+                return VerifyEmailResponse.builder()
+                        .success(false)
+                        .message("该邮箱已被注册")
+                        .build();
+            }
+
+            // 再次检查用户名是否已存在
+            if (userRepository.existsByUsername(pendingUser.getUsername())) {
+                log.warn("验证失败: 该用户名已被使用, username={}", pendingUser.getUsername());
+                // 清理 Redis 中的数据
+                pendingUserService.deletePendingUser(pendingUser.getEmail());
+                return VerifyEmailResponse.builder()
+                        .success(false)
+                        .message("该用户名已被使用")
+                        .build();
+            }
+
+            // 创建用户记录（邮箱已验证状态）
+            User user = User.builder()
+                    .userId(UUID.randomUUID().toString())
+                    .email(pendingUser.getEmail())
+                    .username(pendingUser.getUsername())
+                    .displayName(pendingUser.getDisplayName())
+                    .emailVerified(true)
+                    .build();
+
+            user = userRepository.save(user);
+
+            // 清除 Redis 中的待验证用户
+            pendingUserService.deletePendingUser(pendingUser.getEmail());
+
+            log.info("邮箱验证成功，创建用户: email={}, username={}, userId={}",
+                    user.getEmail(), user.getUsername(), user.getUserId());
 
             return VerifyEmailResponse.builder()
                     .success(true)
@@ -245,57 +357,59 @@ public class AuthService {
                     .username(user.getUsername())
                     .build();
 
-        } catch (BusinessException e) {
+        } catch (Exception e) {
+            log.error("邮箱验证失败: token={}", request.getToken(), e);
             return VerifyEmailResponse.builder()
                     .success(false)
-                    .message(e.getMessage())
+                    .message("验证失败，请重试")
                     .build();
         }
     }
 
     /**
      * 重新发送验证邮件
+     * 更新 Redis 中的待验证用户记录
      *
      * @param request 邮箱
      * @return 注册响应
      */
-    @Transactional
     public EmailRegistrationResponse resendVerificationEmail(ResendVerificationRequest request) {
-        // 检查邮箱是否存在
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "该邮箱未注册"));
+        // 从 Redis 获取待验证用户
+        PendingUser pendingUser = pendingUserService.getPendingUserByEmail(request.getEmail());
 
-        // 检查邮箱是否已验证
-        if (user.getEmailVerified()) {
-            throw new BusinessException("EMAIL_ALREADY_VERIFIED", "该邮箱已验证，无需重新发送");
+        if (pendingUser == null) {
+            throw new BusinessException("PENDING_USER_NOT_FOUND", "该邮箱没有待验证的注册申请，请先注册");
         }
 
-        // 频率限制：60秒内只能请求一次
-        if (user.getLastVerificationEmailSentAt() != null) {
-            LocalDateTime lastSent = user.getLastVerificationEmailSentAt();
-            LocalDateTime cooldownEnd = lastSent.plusSeconds(60);
-
-            if (LocalDateTime.now().isBefore(cooldownEnd)) {
-                long secondsRemaining = java.time.Duration.between(LocalDateTime.now(), cooldownEnd).getSeconds();
-                throw new BusinessException("RESEND_TOO_SOON",
-                        String.format("请等待 %d 秒后再试", secondsRemaining));
+        // 检查令牌是否过期
+        if (pendingUser.isTokenExpired()) {
+            log.info("重发验证邮件时发现令牌已过期，自动更新: email={}", request.getEmail());
+            // 令牌已过期，直接更新，不检查频率限制
+        } else {
+            // 频率限制：60秒内只能请求一次
+            if (!pendingUser.canResendEmail()) {
+                long waitSeconds = 60 - java.time.Duration.between(
+                        pendingUser.getLastEmailSentAt(),
+                        java.time.LocalDateTime.now()
+                ).getSeconds();
+                throw new BusinessException("RESEND_TOO_SOON", "请等待 " + waitSeconds + " 秒后再试");
             }
         }
 
-        // 生成新的验证令牌（旧的会自动失效）
-        String token = verificationTokenService.generateVerificationToken(request.getEmail());
+        // 生成新的验证令牌
+        String newToken = pendingUserService.generateVerificationToken();
+        LocalDateTime tokenExpiresAt = LocalDateTime.now().plusMinutes(tokenExpirationMinutes);
+
+        // 更新 Redis 中的待验证用户
+        pendingUserService.updateVerificationToken(request.getEmail(), newToken, tokenExpiresAt);
 
         // 构建验证链接
-        String verificationUrl = "safevault://verify-email?token=" + token;
-
-        // 更新用户记录：保存新的令牌和发送时间
-        user.setVerificationToken(token);
-        user.setVerificationExpiresAt(LocalDateTime.now().plusMinutes(tokenExpirationMinutes));
-        user.setLastVerificationEmailSentAt(LocalDateTime.now());
-        userRepository.save(user);
+        String verificationUrl = "safevault://verify-email?token=" + newToken;
 
         // 发送验证邮件
         boolean emailSent = emailService.sendVerificationEmail(request.getEmail(), verificationUrl);
+
+        log.info("重新发送验证邮件: email={}, newToken={}", request.getEmail(), newToken);
 
         return EmailRegistrationResponse.builder()
                 .message("验证邮件已重新发送")
@@ -693,5 +807,70 @@ public class AuthService {
         }
 
         return removed;
+    }
+
+    // ========== 调试方法 ==========
+
+    /**
+     * 调试方法：根据邮箱获取待验证用户
+     */
+    public java.util.Map<String, Object> debugGetPendingUserByEmail(String email) {
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        try {
+            org.ttt.safevaultbackend.dto.PendingUser pendingUser =
+                    pendingUserService.getPendingUserByEmail(email);
+
+            if (pendingUser != null) {
+                result.put("found", true);
+                result.put("email", pendingUser.getEmail());
+                result.put("username", pendingUser.getUsername());
+                result.put("token", pendingUser.getVerificationToken());
+                result.put("tokenExpiresAt", pendingUser.getTokenExpiresAt().toString());
+                result.put("createdAt", pendingUser.getCreatedAt().toString());
+                result.put("isExpired", pendingUser.isTokenExpired());
+                result.put("canResend", pendingUser.canResendEmail());
+            } else {
+                result.put("found", false);
+                result.put("message", "未找到待验证用户");
+            }
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 调试方法：根据token获取待验证用户
+     */
+    public java.util.Map<String, Object> debugGetPendingUserByToken(String token) {
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        try {
+            org.ttt.safevaultbackend.dto.PendingUser pendingUser =
+                    pendingUserService.getPendingUserByToken(token);
+
+            if (pendingUser != null) {
+                result.put("found", true);
+                result.put("email", pendingUser.getEmail());
+                result.put("username", pendingUser.getUsername());
+                result.put("token", pendingUser.getVerificationToken());
+                result.put("tokenExpiresAt", pendingUser.getTokenExpiresAt().toString());
+                result.put("createdAt", pendingUser.getCreatedAt().toString());
+                result.put("isExpired", pendingUser.isTokenExpired());
+                result.put("canResend", pendingUser.canResendEmail());
+            } else {
+                result.put("found", false);
+                result.put("message", "未找到待验证用户");
+            }
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 调试方法：获取 Redis 原始数据
+     */
+    public java.util.Map<String, Object> debugGetRedisRawValue(String email) {
+        return pendingUserService.debugGetRawValue(email);
     }
 }

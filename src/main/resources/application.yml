@@ -40,6 +40,19 @@ spring:
           connectiontimeout: 10000
           timeout: 10000
           writetimeout: 10000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
 
 server:
   port: 8080
@@ -77,6 +90,9 @@ app:
 email:
   verification:
     token-expiration-minutes: 10
+    pending-user-expiration-minutes: 30  # 待验证用户在 Redis 中的过期时间
+
+# Redis Configuration
 
 # Logging
 logging:
