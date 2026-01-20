@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.ttt.safevaultbackend.dto.FriendNotificationMessage;
 import org.ttt.safevaultbackend.dto.OnlineUserMessage;
 import org.ttt.safevaultbackend.dto.ShareNotificationMessage;
 import org.ttt.safevaultbackend.websocket.WebSocketConnectionManager;
@@ -44,6 +45,13 @@ public class WebSocketServiceImpl implements WebSocketService {
 
         log.info("Broadcasting share notification to {} online users: {}",
                 onlineUsers.size() - 1, notification);
+    }
+
+    @Override
+    public void sendFriendNotification(String userId, FriendNotificationMessage notification) {
+        String destination = "/user/queue/friends";
+        log.info("Sending friend notification to userId={}: {}", userId, notification);
+        messagingTemplate.convertAndSendToUser(userId, destination, notification);
     }
 
     @Override
