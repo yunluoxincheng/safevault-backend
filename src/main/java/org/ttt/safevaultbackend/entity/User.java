@@ -84,11 +84,11 @@ public class User {
 
     @OneToMany(mappedBy = "fromUser", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<PasswordShare> createdShares = new ArrayList<>();
+    private List<ContactShare> createdShares = new ArrayList<>();
 
     @OneToMany(mappedBy = "toUser", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<PasswordShare> receivedShares = new ArrayList<>();
+    private List<ContactShare> receivedShares = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

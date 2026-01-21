@@ -1,21 +1,16 @@
 package org.ttt.safevaultbackend.entity;
 
 /**
- * 分享状态枚举
+ * 联系人分享状态枚举
  */
-public enum ShareStatus {
+public enum ContactShareStatus {
     /**
      * 待接收
      */
     PENDING,
 
     /**
-     * 活跃中
-     */
-    ACTIVE,
-
-    /**
-     * 已接收
+     * 已接受
      */
     ACCEPTED,
 

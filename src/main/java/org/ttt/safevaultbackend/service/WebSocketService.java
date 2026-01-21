@@ -1,7 +1,6 @@
 package org.ttt.safevaultbackend.service;
 
 import org.ttt.safevaultbackend.dto.FriendNotificationMessage;
-import org.ttt.safevaultbackend.dto.OnlineUserMessage;
 import org.ttt.safevaultbackend.dto.ShareNotificationMessage;
 
 /**
@@ -23,11 +22,6 @@ public interface WebSocketService {
      * 发送好友通知给指定用户
      */
     void sendFriendNotification(String userId, FriendNotificationMessage notification);
-
-    /**
-     * 广播在线用户状态
-     */
-    void broadcastOnlineUser(OnlineUserMessage message);
 
     /**
      * 处理连接

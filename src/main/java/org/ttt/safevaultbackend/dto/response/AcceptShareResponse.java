@@ -4,17 +4,18 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.ttt.safevaultbackend.entity.ContactShareStatus;
 
 /**
- * 分享响应
+ * 接受分享响应
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ShareResponse {
+public class AcceptShareResponse {
 
     private String shareId;
-    private String shareToken;
-    private Long expiresAt;
+    private ContactShareStatus status;
+    private Long acceptedAt;
 }

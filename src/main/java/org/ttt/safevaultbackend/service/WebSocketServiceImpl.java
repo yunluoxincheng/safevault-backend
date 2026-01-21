@@ -5,11 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.ttt.safevaultbackend.dto.FriendNotificationMessage;
-import org.ttt.safevaultbackend.dto.OnlineUserMessage;
 import org.ttt.safevaultbackend.dto.ShareNotificationMessage;
 import org.ttt.safevaultbackend.websocket.WebSocketConnectionManager;
-
-import java.util.UUID;
 
 /**
  * WebSocket 服务实现
@@ -52,13 +49,6 @@ public class WebSocketServiceImpl implements WebSocketService {
         String destination = "/user/queue/friends";
         log.info("Sending friend notification to userId={}: {}", userId, notification);
         messagingTemplate.convertAndSendToUser(userId, destination, notification);
-    }
-
-    @Override
-    public void broadcastOnlineUser(OnlineUserMessage message) {
-        String destination = "/topic/online-users";
-        log.info("Broadcasting online user: {}", message);
-        messagingTemplate.convertAndSend(destination, message);
     }
 
     @Override

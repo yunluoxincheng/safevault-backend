@@ -8,10 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.ttt.safevaultbackend.dto.PasswordData;
 import org.ttt.safevaultbackend.dto.response.*;
 import org.ttt.safevaultbackend.entity.User;
-import org.ttt.safevaultbackend.entity.ShareType;
 import org.ttt.safevaultbackend.exception.ResourceNotFoundException;
+import org.ttt.safevaultbackend.repository.ContactShareRepository;
 import org.ttt.safevaultbackend.repository.UserRepository;
-import org.ttt.safevaultbackend.repository.PasswordShareRepository;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -27,7 +26,7 @@ import java.util.stream.Collectors;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final PasswordShareRepository shareRepository;
+    private final ContactShareRepository contactShareRepository;
 
     /**
      * 获取当前用户ID
@@ -49,7 +48,7 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "userId", userId));
 
-        int shareCount = shareRepository.findByFromUser_UserIdOrderByCreatedAtDesc(userId).size();
+        int shareCount = contactShareRepository.findByFromUser_UserIdOrderByCreatedAtDesc(userId).size();
 
         return UserProfileResponse.builder()
                 .userId(user.getUserId())
@@ -69,7 +68,7 @@ public class UserService {
         User user = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "userId", targetUserId));
 
-        int shareCount = shareRepository.findByFromUser_UserIdOrderByCreatedAtDesc(targetUserId).size();
+        int shareCount = contactShareRepository.findByFromUser_UserIdOrderByCreatedAtDesc(targetUserId).size();
 
         return UserProfileResponse.builder()
                 .userId(user.getUserId())
@@ -152,8 +151,8 @@ public class UserService {
     public PasswordData getUserStatistics() {
         String userId = getCurrentUserId();
 
-        long createdSharesCount = shareRepository.findByFromUser_UserIdOrderByCreatedAtDesc(userId).size();
-        long receivedSharesCount = shareRepository.findByToUser_UserIdOrderByCreatedAtDesc(userId).size();
+        long createdSharesCount = contactShareRepository.findByFromUser_UserIdOrderByCreatedAtDesc(userId).size();
+        long receivedSharesCount = contactShareRepository.findByToUser_UserIdOrderByCreatedAtDesc(userId).size();
 
         return PasswordData.builder()
                 .title("用户统计")

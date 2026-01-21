@@ -8,16 +8,18 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.ttt.safevaultbackend.dto.SharePermission;
-import org.ttt.safevaultbackend.entity.ShareType;
 
 /**
- * 创建分享请求
+ * 创建联系人分享请求
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CreateShareRequest {
+public class CreateContactShareRequest {
+
+    @NotBlank(message = "接收方用户ID不能为空")
+    private String toUserId;
 
     @NotBlank(message = "密码ID不能为空")
     private String passwordId;
@@ -34,15 +36,10 @@ public class CreateShareRequest {
 
     private String notes;
 
-    private String toUserId;
-
     @Min(value = 1, message = "有效期必须大于0")
     @Builder.Default
-    private Integer expireInMinutes = 1440;
+    private Integer expiresInMinutes = 1440; // 默认24小时
 
     @NotNull(message = "权限设置不能为空")
     private SharePermission permission;
-
-    @NotNull(message = "分享类型不能为空")
-    private ShareType shareType;
 }
