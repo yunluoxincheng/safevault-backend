@@ -25,7 +25,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // 注册 STOMP 端点
+        // 纯WebSocket端点（不使用SockJS）- 用于原生WebSocket客户端（如Android OkHttp）
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*");
+
+        // SockJS端点（用于降级支持）- 用于浏览器等需要降级的客户端
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
