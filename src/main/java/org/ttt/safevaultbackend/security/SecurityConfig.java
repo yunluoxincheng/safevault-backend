@@ -40,6 +40,7 @@ public class SecurityConfig {
                                 "/v1/auth/**",
                                 "/v1/users/search",
                                 "/verify/**",           // 邮箱验证页面（公开访问）
+                                "/static/**",           // 静态资源（图片、CSS等）
                                 "/ws/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",

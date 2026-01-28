@@ -3,13 +3,17 @@ package org.ttt.safevaultbackend.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import jakarta.mail.internet.MimeMessage;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * 邮件服务
@@ -42,13 +46,23 @@ public class EmailService {
             log.info("Verification URL: {}", verificationUrl);
 
             MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            // true 表示多部分消息
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
             helper.setSubject("验证您的 SafeVault 邮箱");
 
-            // 构建 HTML 邮件内容
+            // 添加内嵌图片作为附件
+            ClassPathResource imageResource = new ClassPathResource("static/images/safevault_icon.png");
+            if (imageResource.exists()) {
+                helper.addInline("safe-vaultIcon", imageResource);
+                log.info("Successfully attached SafeVault icon as inline resource");
+            } else {
+                log.warn("SafeVault icon not found in classpath: static/images/safevault_icon.png");
+            }
+
+            // 构建 HTML 邮件内容（使用 cid: 协议引用图片）
             String htmlContent = buildVerificationEmailHtml(toEmail, verificationUrl);
             helper.setText(htmlContent, true);
 
@@ -110,6 +124,15 @@ public class EmailService {
             helper.setTo(toEmail);
             helper.setSubject("重置您的 SafeVault 密码");
 
+            // 添加内嵌图片作为附件
+            ClassPathResource imageResource = new ClassPathResource("static/images/safevault_icon.png");
+            if (imageResource.exists()) {
+                helper.addInline("safe-vaultIcon", imageResource);
+                log.info("Successfully attached SafeVault icon for password reset email");
+            } else {
+                log.warn("SafeVault icon not found in classpath for password reset email");
+            }
+
             String htmlContent = buildPasswordResetEmailHtml(toEmail, resetUrl);
             helper.setText(htmlContent, true);
 
@@ -132,124 +155,15 @@ public class EmailService {
         String token = extractTokenFromUrl(verificationUrl);
         String httpsUrl = "https://frp-hat.com:27784/api/verify/email?token=" + token;
 
-        String html = """
-            <!DOCTYPE html>
-            <html lang="zh-CN">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>验证您的邮箱</title>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                        background-color: #f5f5f5;
-                        margin: 0;
-                        padding: 0;
-                        line-height: 1.6;
-                    }
-                    .container {
-                        max-width: 600px;
-                        margin: 40px auto;
-                        background-color: #ffffff;
-                        border-radius: 8px;
-                        overflow: hidden;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                    }
-                    .header {
-                        background: linear-gradient(135deg, #6366f1 0%%, #8b5cf6 100%%);
-                        padding: 30px;
-                        text-align: center;
-                    }
-                    .header h1 {
-                        color: #ffffff;
-                        margin: 0;
-                        font-size: 24px;
-                    }
-                    .content {
-                        padding: 40px 30px;
-                    }
-                    .greeting {
-                        font-size: 18px;
-                        color: #333333;
-                        margin-bottom: 20px;
-                    }
-                    .message {
-                        color: #666666;
-                        margin-bottom: 30px;
-                    }
-                    .button-container {
-                        text-align: center;
-                        margin: 30px 0;
-                    }
-                    .verify-button {
-                        display: inline-block;
-                        padding: 14px 40px;
-                        background: linear-gradient(135deg, #6366f1 0%%, #8b5cf6 100%%);
-                        color: #ffffff;
-                        text-decoration: none;
-                        border-radius: 6px;
-                        font-size: 16px;
-                        font-weight: 500;
-                    }
-                    .verify-button:hover {
-                        opacity: 0.9;
-                    }
-                    .link-text {
-                        text-align: center;
-                        color: #999999;
-                        font-size: 12px;
-                        word-break: break-all;
-                        margin-top: 20px;
-                    }
-                    .footer {
-                        background-color: #f9f9f9;
-                        padding: 20px 30px;
-                        text-align: center;
-                        color: #999999;
-                        font-size: 12px;
-                    }
-                    .warning {
-                        background-color: #fff3cd;
-                        border-left: 4px solid #ffc107;
-                        padding: 15px;
-                        margin: 20px 0;
-                        color: #856404;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🔐 SafeVault</h1>
-                    </div>
-                    <div class="content">
-                        <p class="greeting">您好，</p>
-                        <p class="message">
-                            感谢您注册 SafeVault！请点击下方按钮验证您的邮箱地址：
-                        </p>
-                        <div class="button-container">
-                            <a href="%s" class="verify-button">验证邮箱</a>
-                        </div>
-                        <p class="message">
-                            或者复制以下链接到浏览器中打开：
-                        </p>
-                        <div class="link-text">%s</div>
-                        <div class="warning">
-                            ⚠️ 此验证链接将在 10 分钟后失效，请尽快完成验证。
-                        </div>
-                        <p class="message">
-                            如果这不是您的操作，请忽略此邮件。
-                        </p>
-                    </div>
-                    <div class="footer">
-                        <p>此邮件由 SafeVault 系统自动发送，请勿直接回复。</p>
-                        <p>%s</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """;
-        return String.format(html, httpsUrl, httpsUrl, LocalDateTime.now());
+        try {
+            String template = loadTemplate("email/verification-email.html");
+            return template
+                    .replace("{{verificationUrl}}", httpsUrl)
+                    .replace("{{timestamp}}", LocalDateTime.now().toString());
+        } catch (IOException e) {
+            log.error("Failed to load verification email template", e);
+            return buildFallbackEmail(httpsUrl);
+        }
     }
 
     /**
@@ -277,122 +191,60 @@ public class EmailService {
      * 构建验证邮件纯文本内容
      */
     private String buildVerificationEmailText(String email, String verificationUrl) {
-        String text = """
-            SafeVault - 验证您的邮箱
-            ======================================
-
-            您好，
-
-            感谢您注册 SafeVault！请点击以下链接验证您的邮箱地址：
-
-            %s
-
-            如果按钮无法点击，请复制上面的链接到浏览器中打开。
-
-            ⚠️ 此验证链接将在 10 分钟后失效，请尽快完成验证。
-
-            如果这不是您的操作，请忽略此邮件。
-
-            ======================================
-            此邮件由 SafeVault 系统自动发送，请勿直接回复。
-            时间: %s
-            """;
-        return String.format(text, verificationUrl, LocalDateTime.now());
+        try {
+            String template = loadTemplate("email/verification-email.txt");
+            return template
+                    .replace("{{verificationUrl}}", verificationUrl)
+                    .replace("{{timestamp}}", LocalDateTime.now().toString());
+        } catch (IOException e) {
+            log.error("Failed to load verification email text template", e);
+            return "SafeVault - 验证您的邮箱\n\n请访问以下链接验证邮箱: " + verificationUrl;
+        }
     }
 
     /**
      * 构建密码重置邮件 HTML 内容
      */
     private String buildPasswordResetEmailHtml(String email, String resetUrl) {
-        String html = """
+        try {
+            String template = loadTemplate("email/password-reset.html");
+            return template
+                    .replace("{{resetUrl}}", resetUrl)
+                    .replace("{{timestamp}}", LocalDateTime.now().toString());
+        } catch (IOException e) {
+            log.error("Failed to load password reset email template", e);
+            return buildFallbackEmail(resetUrl);
+        }
+    }
+
+    /**
+     * 从 resources/templates 目录加载模板文件
+     */
+    private String loadTemplate(String templatePath) throws IOException {
+        try (InputStream inputStream = getClass().getClassLoader()
+                .getResourceAsStream("templates/" + templatePath)) {
+            if (inputStream == null) {
+                throw new IOException("Template not found: " + templatePath);
+            }
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /**
+     * 构建备用邮件内容（当模板加载失败时使用）
+     */
+    private String buildFallbackEmail(String url) {
+        return String.format("""
             <!DOCTYPE html>
-            <html lang="zh-CN">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>重置您的密码</title>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                        background-color: #f5f5f5;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    .container {
-                        max-width: 600px;
-                        margin: 40px auto;
-                        background-color: #ffffff;
-                        border-radius: 8px;
-                        overflow: hidden;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                    }
-                    .header {
-                        background: linear-gradient(135deg, #6366f1 0%%, #8b5cf6 100%%);
-                        padding: 30px;
-                        text-align: center;
-                    }
-                    .header h1 {
-                        color: #ffffff;
-                        margin: 0;
-                        font-size: 24px;
-                    }
-                    .content {
-                        padding: 40px 30px;
-                    }
-                    .button-container {
-                        text-align: center;
-                        margin: 30px 0;
-                    }
-                    .reset-button {
-                        display: inline-block;
-                        padding: 14px 40px;
-                        background: linear-gradient(135deg, #6366f1 0%%, #8b5cf6 100%%);
-                        color: #ffffff;
-                        text-decoration: none;
-                        border-radius: 6px;
-                        font-size: 16px;
-                        font-weight: 500;
-                    }
-                    .warning {
-                        background-color: #fff3cd;
-                        border-left: 4px solid #ffc107;
-                        padding: 15px;
-                        margin: 20px 0;
-                        color: #856404;
-                    }
-                    .footer {
-                        background-color: #f9f9f9;
-                        padding: 20px 30px;
-                        text-align: center;
-                        color: #999999;
-                        font-size: 12px;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🔐 SafeVault</h1>
-                    </div>
-                    <div class="content">
-                        <p>您好，</p>
-                        <p>我们收到了您的密码重置请求。请点击下方按钮重置密码：</p>
-                        <div class="button-container">
-                            <a href="%s" class="reset-button">重置密码</a>
-                        </div>
-                        <div class="warning">
-                            ⚠️ 此重置链接将在 30 分钟后失效。
-                        </div>
-                        <p>如果这不是您的操作，请忽略此邮件并保持密码安全。</p>
-                    </div>
-                    <div class="footer">
-                        <p>此邮件由 SafeVault 系统自动发送，请勿直接回复。</p>
-                        <p>%s</p>
-                    </div>
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2>SafeVault</h2>
+                    <p>请点击以下链接完成操作：</p>
+                    <p><a href="%s">%s</a></p>
                 </div>
             </body>
             </html>
-            """;
-        return String.format(html, resetUrl, LocalDateTime.now());
+            """, url, url);
     }
 }
