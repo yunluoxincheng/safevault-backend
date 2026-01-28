@@ -12,6 +12,7 @@ import org.ttt.safevaultbackend.dto.response.EmailLoginResponse;
 import org.ttt.safevaultbackend.dto.response.EmailRegistrationResponse;
 import org.ttt.safevaultbackend.dto.response.LogoutResponse;
 import org.ttt.safevaultbackend.dto.response.VerifyEmailResponse;
+import org.ttt.safevaultbackend.dto.response.VerificationStatusResponse;
 import org.ttt.safevaultbackend.dto.DeviceInfo;
 import org.ttt.safevaultbackend.dto.PendingUser;
 import org.ttt.safevaultbackend.entity.User;
@@ -45,6 +46,8 @@ public class AuthService {
     private final PendingUserService pendingUserService;
     private final CryptoService cryptoService;
     private final TokenRevokeService tokenRevokeService;
+    private final VerificationEventService verificationEventService;
+    private final EmailVerificationHistoryService verificationHistoryService;
 
     @Value("${email.verification.token-expiration-minutes:10}")
     private int tokenExpirationMinutes;
@@ -252,11 +255,22 @@ public class AuthService {
         // 保存到 Redis
         pendingUserService.savePendingUser(pendingUser);
 
+        // 记录令牌生成事件
+        verificationEventService.recordTokenGenerated(null, request.getEmail(), token, null);
+
+        // 记录验证历史（异步）
+        verificationHistoryService.recordRegistrationHistory(
+            null, request.getEmail(), token, null, tokenExpiresAt, "aliyun"
+        );
+
         // 构建验证链接（Deep Link）
         String verificationUrl = "safevault://verify-email?token=" + token;
 
         // 发送验证邮件
         boolean emailSent = emailService.sendVerificationEmail(request.getEmail(), verificationUrl);
+
+        // 记录邮件发送事件
+        verificationEventService.recordEmailSent(null, request.getEmail(), token, emailSent, emailSent ? null : "邮件发送失败");
 
         log.info("发起邮箱注册: email={}, username={}, token={}", request.getEmail(), request.getUsername(), token);
 
@@ -347,6 +361,12 @@ public class AuthService {
             // 清除 Redis 中的待验证用户
             pendingUserService.deletePendingUser(pendingUser.getEmail());
 
+            // 记录验证成功事件
+            verificationEventService.recordTokenVerified(user.getUserId(), pendingUser.getEmail(), request.getToken(), null);
+
+            // 标记验证历史为已使用
+            verificationHistoryService.markAsUsed(request.getToken());
+
             log.info("邮箱验证成功，创建用户: email={}, username={}, userId={}",
                     user.getEmail(), user.getUsername(), user.getUserId());
 
@@ -403,11 +423,22 @@ public class AuthService {
         // 更新 Redis 中的待验证用户
         pendingUserService.updateVerificationToken(request.getEmail(), newToken, tokenExpiresAt);
 
+        // 记录新令牌生成事件
+        verificationEventService.recordTokenGenerated(null, request.getEmail(), newToken, null);
+
+        // 记录重发验证历史
+        verificationHistoryService.recordRegistrationHistory(
+            null, request.getEmail(), newToken, null, tokenExpiresAt, "aliyun"
+        );
+
         // 构建验证链接
         String verificationUrl = "safevault://verify-email?token=" + newToken;
 
         // 发送验证邮件
         boolean emailSent = emailService.sendVerificationEmail(request.getEmail(), verificationUrl);
+
+        // 记录邮件发送事件
+        verificationEventService.recordEmailSent(null, request.getEmail(), newToken, emailSent, emailSent ? null : "邮件发送失败");
 
         log.info("重新发送验证邮件: email={}, newToken={}", request.getEmail(), newToken);
 
@@ -416,6 +447,56 @@ public class AuthService {
                 .email(request.getEmail())
                 .emailSent(emailSent)
                 .expiresInSeconds((long) tokenExpirationMinutes * 60)
+                .build();
+    }
+
+    /**
+     * 检查邮箱验证状态
+     * 用于前端轮询检查用户是否已在 Web 页面完成验证
+     *
+     * @param email 邮箱地址
+     * @return 验证状态响应
+     */
+    @Transactional(readOnly = true)
+    public VerificationStatusResponse checkVerificationStatus(String email) {
+        // 首先检查数据库中是否已有该邮箱的用户（表示已验证）
+        if (userRepository.existsByEmail(email)) {
+            User user = userRepository.findByEmail(email).orElse(null);
+            if (user != null && user.getEmailVerified()) {
+                return VerificationStatusResponse.builder()
+                        .status("VERIFIED")
+                        .email(user.getEmail())
+                        .username(user.getUsername())
+                        .build();
+            }
+        }
+
+        // 检查 Redis 中是否有待验证用户
+        PendingUser pendingUser = pendingUserService.getPendingUserByEmail(email);
+        if (pendingUser != null) {
+            // 检查是否过期
+            if (pendingUser.isTokenExpired()) {
+                // 过期，清理并返回 NOT_FOUND
+                pendingUserService.deletePendingUser(email);
+                return VerificationStatusResponse.builder()
+                        .status("NOT_FOUND")
+                        .email(email)
+                        .build();
+            }
+
+            // 待验证
+            return VerificationStatusResponse.builder()
+                    .status("PENDING")
+                    .email(pendingUser.getEmail())
+                    .username(pendingUser.getUsername())
+                    .tokenExpiresAt(pendingUser.getTokenExpiresAt().toString())
+                    .build();
+        }
+
+        // 无记录
+        return VerificationStatusResponse.builder()
+                .status("NOT_FOUND")
+                .email(email)
                 .build();
     }
 

@@ -39,6 +39,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/v1/auth/**",
                                 "/v1/users/search",
+                                "/verify/**",           // 邮箱验证页面（公开访问）
                                 "/ws/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",

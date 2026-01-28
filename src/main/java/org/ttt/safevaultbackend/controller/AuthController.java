@@ -16,6 +16,7 @@ import org.ttt.safevaultbackend.dto.response.EmailRegistrationResponse;
 import org.ttt.safevaultbackend.dto.response.LogoutResponse;
 import org.ttt.safevaultbackend.dto.response.RemoveDeviceResponse;
 import org.ttt.safevaultbackend.dto.response.VerifyEmailResponse;
+import org.ttt.safevaultbackend.dto.response.VerificationStatusResponse;
 import org.ttt.safevaultbackend.dto.DeviceInfo;
 import org.ttt.safevaultbackend.service.AuthService;
 
@@ -95,6 +96,15 @@ public class AuthController {
     public ResponseEntity<CompleteRegistrationResponse> completeRegistration(
             @Valid @RequestBody CompleteRegistrationRequest request) {
         CompleteRegistrationResponse response = authService.completeRegistration(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/verification-status")
+    @Operation(summary = "检查邮箱验证状态", description = "查询邮箱是否已完成验证")
+    public ResponseEntity<VerificationStatusResponse> checkVerificationStatus(
+            @io.swagger.v3.oas.annotations.Parameter(description = "要查询的邮箱地址", required = true)
+            @RequestParam String email) {
+        VerificationStatusResponse response = authService.checkVerificationStatus(email);
         return ResponseEntity.ok(response);
     }
 

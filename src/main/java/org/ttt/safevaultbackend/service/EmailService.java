@@ -128,6 +128,10 @@ public class EmailService {
      * 构建验证邮件 HTML 内容
      */
     private String buildVerificationEmailHtml(String email, String verificationUrl) {
+        // 提取token并构建HTTPS链接
+        String token = extractTokenFromUrl(verificationUrl);
+        String httpsUrl = "https://frp-hat.com:27784/api/verify/email?token=" + token;
+
         String html = """
             <!DOCTYPE html>
             <html lang="zh-CN">
@@ -245,7 +249,28 @@ public class EmailService {
             </body>
             </html>
             """;
-        return String.format(html, verificationUrl, verificationUrl, LocalDateTime.now());
+        return String.format(html, httpsUrl, httpsUrl, LocalDateTime.now());
+    }
+
+    /**
+     * 从URL中提取token
+     */
+    private String extractTokenFromUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return "";
+        }
+        // 从 safevault://verify-email?token=xxx 或 https://xxx/verify/email?token=xxx 中提取token
+        int tokenIndex = url.indexOf("token=");
+        if (tokenIndex >= 0) {
+            String token = url.substring(tokenIndex + 6);
+            // 移除可能的额外参数
+            int ampersandIndex = token.indexOf('&');
+            if (ampersandIndex >= 0) {
+                token = token.substring(0, ampersandIndex);
+            }
+            return token;
+        }
+        return "";
     }
 
     /**

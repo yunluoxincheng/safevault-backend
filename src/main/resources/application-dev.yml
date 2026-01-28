@@ -33,7 +33,7 @@ spring:
             enable: true
             required: true
           ssl:
-            enable: false
+            enable: true
           connectiontimeout: 10000
           timeout: 10000
           writetimeout: 10000
