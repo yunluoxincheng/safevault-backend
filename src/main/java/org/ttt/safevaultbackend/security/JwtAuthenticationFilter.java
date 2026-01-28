@@ -32,20 +32,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+        String requestPath = request.getRequestURI();
+        logger.debug("Processing request: " + requestPath);
+
         try {
             String jwt = getJwtFromRequest(request);
 
-            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
-                String userId = tokenProvider.getUserIdFromToken(jwt);
+            if (jwt == null) {
+                logger.debug("No JWT token found in request headers for: " + requestPath);
+            } else {
+                logger.debug("JWT token found, length: " + jwt.length() + ", validating...");
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userId, null, new ArrayList<>());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                if (tokenProvider.validateToken(jwt)) {
+                    String userId = tokenProvider.getUserIdFromToken(jwt);
+                    logger.info("JWT validated successfully for user: " + userId + " on: " + requestPath);
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userId, null, new ArrayList<>());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    logger.debug("SecurityContext updated with user: " + userId);
+                } else {
+                    logger.warn("JWT token validation failed for: " + requestPath);
+                    // Token 验证失败的详细原因
+                    if (tokenProvider.isTokenExpired(jwt)) {
+                        logger.warn("JWT token is expired");
+                    }
+                }
             }
         } catch (Exception ex) {
-            logger.error("Could not set user authentication in security context", ex);
+            logger.error("Could not set user authentication in security context for: " + requestPath, ex);
         }
 
         filterChain.doFilter(request, response);

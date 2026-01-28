@@ -2,6 +2,8 @@ package org.ttt.safevaultbackend.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +16,8 @@ import java.util.Date;
  */
 @Component
 public class JwtTokenProvider {
+
+    private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -80,10 +84,20 @@ public class JwtTokenProvider {
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token);
+            logger.debug("JWT token validated successfully");
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
+        } catch (ExpiredJwtException e) {
+            logger.warn("JWT token is expired: " + e.getMessage());
+        } catch (UnsupportedJwtException e) {
+            logger.warn("JWT token is unsupported: " + e.getMessage());
+        } catch (MalformedJwtException e) {
+            logger.warn("JWT token is malformed: " + e.getMessage());
+        } catch (SecurityException e) {
+            logger.warn("JWT token signature validation failed: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            logger.warn("JWT token is illegal: " + e.getMessage());
         }
+        return false;
     }
 
     /**
