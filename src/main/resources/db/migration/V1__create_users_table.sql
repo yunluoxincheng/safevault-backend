@@ -1,14 +1,6 @@
 --创建schema，safevault--
     CREATE SCHEMA IF NOT EXISTS public;
  --
-DROP TABLE IF EXISTS password_shares CASCADE;
-DROP TABLE IF EXISTS share_audit_logs CASCADE;
-DROP TABLE IF EXISTS online_users CASCADE;
-DROP TABLE IF EXISTS user_vaults CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TYPE IF EXISTS share_type CASCADE;
-DROP TYPE IF EXISTS share_status CASCADE;
-DELETE FROM flyway_schema_history;
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (

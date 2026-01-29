@@ -16,9 +16,11 @@ import org.ttt.safevaultbackend.dto.response.VerificationStatusResponse;
 import org.ttt.safevaultbackend.dto.DeviceInfo;
 import org.ttt.safevaultbackend.dto.PendingUser;
 import org.ttt.safevaultbackend.entity.User;
+import org.ttt.safevaultbackend.entity.UserPrivateKey;
 import org.ttt.safevaultbackend.exception.BusinessException;
 import org.ttt.safevaultbackend.exception.ResourceNotFoundException;
 import org.ttt.safevaultbackend.repository.UserRepository;
+import org.ttt.safevaultbackend.repository.UserPrivateKeyRepository;
 import org.ttt.safevaultbackend.security.JwtTokenProvider;
 import org.ttt.safevaultbackend.service.EmailService;
 import org.ttt.safevaultbackend.service.PendingUserService;
@@ -40,6 +42,7 @@ import java.util.stream.Collectors;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final UserPrivateKeyRepository userPrivateKeyRepository;
     private final JwtTokenProvider tokenProvider;
     private final EmailService emailService;
     private final VerificationTokenService verificationTokenService;
@@ -818,6 +821,17 @@ public class AuthService {
         }
 
         user = userRepository.save(user);
+
+        // 保存私钥到 user_private_keys 表
+        UserPrivateKey userPrivateKey = UserPrivateKey.builder()
+                .userId(user.getUserId())
+                .encryptedPrivateKey(request.getEncryptedPrivateKey())
+                .iv(request.getPrivateKeyIv())
+                .salt(request.getSalt())
+                .version("v1")
+                .build();
+        userPrivateKeyRepository.save(userPrivateKey);
+        log.info("保存私钥到 user_private_keys 表: userId={}", user.getUserId());
 
         // 生成访问令牌和刷新令牌
         String accessToken = tokenProvider.generateAccessToken(user.getUserId());

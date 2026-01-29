@@ -5,7 +5,6 @@
 DROP TABLE IF EXISTS share_audit_logs CASCADE;
 
 -- 删除在线用户表（附近用户功能已移除）
-DROP TABLE IF EXISTS online_users CASCADE;
 
 -- 删除旧的密码分享表
 -- 注意: 在生产环境执行前应先备份数据

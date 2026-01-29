@@ -1,8 +1,16 @@
--- Create share types enum
-CREATE TYPE share_type AS ENUM ('DIRECT', 'USER_TO_USER', 'NEARBY');
+-- Create share types enum (idempotent)
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'share_type') THEN
+        CREATE TYPE share_type AS ENUM ('DIRECT', 'USER_TO_USER', 'NEARBY');
+    END IF;
+END $$;
 
--- Create share status enum
-CREATE TYPE share_status AS ENUM ('PENDING', 'ACTIVE', 'ACCEPTED', 'EXPIRED', 'REVOKED');
+-- Create share status enum (idempotent)
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'share_status') THEN
+        CREATE TYPE share_status AS ENUM ('PENDING', 'ACTIVE', 'ACCEPTED', 'EXPIRED', 'REVOKED');
+    END IF;
+END $$;
 
 -- Create password_shares table
 CREATE TABLE IF NOT EXISTS password_shares (

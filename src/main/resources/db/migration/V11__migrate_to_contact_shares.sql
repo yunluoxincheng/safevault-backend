@@ -1,6 +1,5 @@
 -- 迁移活跃的 USER_TO_USER 分享到 contact_shares 表
 -- 将现有的 password_shares 数据迁移到新的 contact_shares 表
-
 -- 迁移活跃的 USER_TO_USER 分享
 INSERT INTO contact_shares (
     share_id,
