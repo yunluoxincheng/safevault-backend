@@ -16,8 +16,9 @@ public class FriendDto {
 
     private String userId;
     private String username;
+    private String email;        // 用户的邮箱
     private String displayName;
-    private String publicKey;  // 用户的公钥
+    private String publicKey;    // 用户的公钥
     private Long addedAt;
     private Boolean isOnline;
 }

@@ -171,6 +171,7 @@ public class FriendServiceImpl implements FriendService {
                             .map(user -> FriendDto.builder()
                                     .userId(user.getUserId())
                                     .username(user.getUsername())
+                                    .email(user.getEmail())
                                     .displayName(user.getDisplayName())
                                     .publicKey(user.getPublicKey())
                                     .addedAt(friendship.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
