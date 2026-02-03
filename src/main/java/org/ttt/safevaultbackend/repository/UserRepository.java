@@ -1,11 +1,13 @@
 package org.ttt.safevaultbackend.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.ttt.safevaultbackend.entity.User;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -80,4 +82,20 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 通过验证令牌查找用户
      */
     Optional<User> findByVerificationToken(String verificationToken);
+
+    // ========== 注册状态追踪相关方法 ==========
+
+    /**
+     * 查找超时未完成注册的用户
+     * 状态为 EMAIL_VERIFIED 且 verified_at 早于指定时间
+     */
+    @Query("SELECT u FROM User u WHERE u.registrationStatus = 'EMAIL_VERIFIED' AND u.verifiedAt < :cutoffTime")
+    List<User> findTimeoutRegistrations(@Param("cutoffTime") LocalDateTime cutoffTime);
+
+    /**
+     * 删除超时未完成注册的用户
+     */
+    @Modifying
+    @Query("DELETE FROM User u WHERE u.registrationStatus = 'EMAIL_VERIFIED' AND u.verifiedAt < :cutoffTime")
+    int deleteTimeoutRegistrations(@Param("cutoffTime") LocalDateTime cutoffTime);
 }

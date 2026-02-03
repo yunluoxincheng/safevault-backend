@@ -55,6 +55,9 @@ public class AuthService {
     @Value("${email.verification.token-expiration-minutes:10}")
     private int tokenExpirationMinutes;
 
+    @Value("${registration.cleanup-timeout-minutes:5}")
+    private int registrationTimeoutMinutes;
+
     @Value("${app.base-url:http://localhost:8080/api}")
     private String baseUrl;
 
@@ -357,6 +360,8 @@ public class AuthService {
                     .username(pendingUser.getUsername())
                     .displayName(pendingUser.getDisplayName())
                     .emailVerified(true)
+                    .registrationStatus("EMAIL_VERIFIED")
+                    .verifiedAt(LocalDateTime.now())
                     .build();
 
             user = userRepository.save(user);
@@ -801,6 +806,26 @@ public class AuthService {
             throw new BusinessException("USERNAME_MISMATCH", "用户名不匹配");
         }
 
+        // 检查注册状态是否有效
+        if (!"EMAIL_VERIFIED".equals(user.getRegistrationStatus())) {
+            throw new BusinessException("INVALID_REGISTRATION_STATUS",
+                "注册状态无效，当前状态: " + user.getRegistrationStatus());
+        }
+
+        // 检查是否超时
+        if (user.getVerifiedAt() != null) {
+            LocalDateTime timeout = user.getVerifiedAt().plusMinutes(registrationTimeoutMinutes);
+            if (LocalDateTime.now().isAfter(timeout)) {
+                // 超时，删除用户并提示重新注册
+                userRepository.delete(user);
+                verificationEventService.recordRegistrationTimeout(user.getUserId(), user.getEmail(), user.getVerifiedAt(), timeout);
+                log.warn("注册超时，已删除用户: email={}, verifiedAt={}, timeout={}",
+                    user.getEmail(), user.getVerifiedAt(), timeout);
+                throw new BusinessException("REGISTRATION_TIMEOUT",
+                    "注册超时（" + registrationTimeoutMinutes + "分钟），请重新注册");
+            }
+        }
+
         // 检查是否已完成注册
         if (user.getPasswordVerifier() != null && !user.getPasswordVerifier().isEmpty()) {
             throw new BusinessException("REGISTRATION_ALREADY_COMPLETED", "注册已完成，请直接登录");
@@ -819,6 +844,10 @@ public class AuthService {
         if (user.getDeviceId() == null || user.getDeviceId().isEmpty()) {
             user.setDeviceId(request.getDeviceId());
         }
+
+        // 更新注册状态为 ACTIVE
+        user.setRegistrationStatus("ACTIVE");
+        user.setRegistrationCompletedAt(LocalDateTime.now());
 
         user = userRepository.save(user);
 

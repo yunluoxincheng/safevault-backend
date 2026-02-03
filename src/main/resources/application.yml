@@ -92,6 +92,12 @@ email:
     token-expiration-minutes: 10
     pending-user-expiration-minutes: 30  # 待验证用户在 Redis 中的过期时间
 
+# Registration Status Tracking Configuration
+registration:
+  cleanup-timeout-minutes: 5  # 注册超时时间（分钟），默认5分钟
+  cleanup-scheduled-enabled: true  # 是否启用定时清理任务
+  cleanup-scheduled-interval-ms: 300000  # 定时清理任务执行间隔（毫秒），默认5分钟
+
 # Redis Configuration
 
 # Logging

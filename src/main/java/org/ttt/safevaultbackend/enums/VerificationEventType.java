@@ -69,5 +69,17 @@ public enum VerificationEventType {
      * Deep Link点击
      * 用户点击Deep Link尝试打开App时记录此事件
      */
-    DEEP_LINK_CLICK
+    DEEP_LINK_CLICK,
+
+    /**
+     * 注册超时
+     * 用户验证邮箱后未在规定时间内完成注册时记录此事件
+     */
+    REGISTRATION_TIMEOUT,
+
+    /**
+     * 注册清理
+     * 定时任务清理超时用户时记录此事件
+     */
+    REGISTRATION_CLEANUP
 }

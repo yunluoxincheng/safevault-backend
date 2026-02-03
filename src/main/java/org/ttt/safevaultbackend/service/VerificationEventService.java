@@ -160,4 +160,35 @@ public class VerificationEventService {
         log.info("Cleaned up {} expired verification events before {}", deleted, cutoffDate);
         return deleted;
     }
+
+    /**
+     * 记录注册超时事件
+     * 当用户完成注册时发现已超时，记录此事件
+     */
+    @Transactional
+    public VerificationEvent recordRegistrationTimeout(String userId, String email, LocalDateTime verifiedAt, LocalDateTime timeout) {
+        VerificationEvent event = VerificationEvent.builder()
+            .userId(userId)
+            .email(email)
+            .eventType(VerificationEventType.REGISTRATION_TIMEOUT)
+            .success(false)
+            .failureReason("注册超时，验证时间: " + verifiedAt + "，超时时间: " + timeout)
+            .build();
+        return recordEvent(event);
+    }
+
+    /**
+     * 记录注册清理事件
+     * 定时任务清理超时用户时记录此事件
+     */
+    @Transactional
+    public void recordRegistrationCleanup(String userId, String email, LocalDateTime verifiedAt) {
+        VerificationEvent event = VerificationEvent.builder()
+            .userId(userId)
+            .email(email)
+            .eventType(VerificationEventType.REGISTRATION_CLEANUP)
+            .success(true)
+            .build();
+        recordEvent(event);
+    }
 }

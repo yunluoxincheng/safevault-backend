@@ -45,6 +45,17 @@ public class User {
     @Builder.Default
     private Boolean emailVerified = false;
 
+    // 注册状态追踪字段
+    @Column(name = "registration_status", length = 50, nullable = false)
+    @Builder.Default
+    private String registrationStatus = "ACTIVE"; // EMAIL_VERIFIED, ACTIVE
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
+
+    @Column(name = "registration_completed_at")
+    private LocalDateTime registrationCompletedAt;
+
     @Column(name = "verification_token", length = 255)
     private String verificationToken;
 
