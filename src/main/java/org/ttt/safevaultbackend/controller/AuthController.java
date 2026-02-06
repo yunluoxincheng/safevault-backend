@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,12 +24,13 @@ import org.ttt.safevaultbackend.service.AuthService;
 /**
  * 认证控制器
  * 支持旧的设备 ID 认证和新的邮箱认证
+ * 安全加固：继承 BaseController，从 SecurityContext 获取用户 ID（2.5）
  */
 @RestController
 @RequestMapping("/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "认证", description = "用户注册、登录和令牌刷新")
-public class AuthController {
+public class AuthController extends BaseController {
 
     private final AuthService authService;
 
@@ -119,10 +121,9 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "注销登录", description = "清除服务器端会话")
     public ResponseEntity<LogoutResponse> logout(
-            @io.swagger.v3.oas.annotations.Parameter(description = "用户 ID（从 JWT Token 中获取）")
-            @RequestHeader("X-User-Id") String userId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @Valid @RequestBody LogoutRequest request) {
+        String userId = getCurrentUserId();
         // 从 Authorization header 中提取令牌
         String token = null;
         if (authorization != null && authorization.startsWith("Bearer ")) {
@@ -136,9 +137,8 @@ public class AuthController {
 
     @GetMapping("/devices")
     @Operation(summary = "获取设备列表", description = "获取当前用户的所有设备列表")
-    public ResponseEntity<DeviceListResponse> getDevices(
-            @io.swagger.v3.oas.annotations.Parameter(description = "用户 ID（从 JWT Token 中获取）")
-            @RequestHeader("X-User-Id") String userId) {
+    public ResponseEntity<DeviceListResponse> getDevices() {
+        String userId = getCurrentUserId();
         java.util.List<DeviceInfo> devices = authService.getUserDevices(userId);
         DeviceListResponse response = DeviceListResponse.builder()
                 .devices(devices)
@@ -150,10 +150,9 @@ public class AuthController {
     @DeleteMapping("/devices/{deviceId}")
     @Operation(summary = "移除设备", description = "移除指定的设备")
     public ResponseEntity<RemoveDeviceResponse> removeDevice(
-            @io.swagger.v3.oas.annotations.Parameter(description = "用户 ID（从 JWT Token 中获取）")
-            @RequestHeader("X-User-Id") String userId,
             @io.swagger.v3.oas.annotations.Parameter(description = "要移除的设备 ID")
             @PathVariable String deviceId) {
+        String userId = getCurrentUserId();
         boolean removed = authService.removeDevice(userId, deviceId);
         RemoveDeviceResponse response = RemoveDeviceResponse.builder()
                 .success(removed)
@@ -164,9 +163,11 @@ public class AuthController {
     }
 
     // ========== 调试 API ==========
+    // 安全加固：调试端点仅在开发环境可用，生产环境不可访问
 
+    @Profile("dev")
     @GetMapping("/debug/pending-user")
-    @Operation(summary = "调试：获取待验证用户状态", description = "根据邮箱或token查询Redis中的待验证用户状态")
+    @Operation(summary = "调试：获取待验证用户状态", description = "根据邮箱或token查询Redis中的待验证用户状态（仅开发环境）")
     public ResponseEntity<java.util.Map<String, Object>> debugPendingUser(
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String token) {
@@ -186,8 +187,9 @@ public class AuthController {
         return ResponseEntity.ok(result);
     }
 
+    @Profile("dev")
     @GetMapping("/debug/redis-raw")
-    @Operation(summary = "调试：获取 Redis 原始数据", description = "查看 Redis 中存储的原始值和类型")
+    @Operation(summary = "调试：获取 Redis 原始数据", description = "查看 Redis 中存储的原始值和类型（仅开发环境）")
     public ResponseEntity<java.util.Map<String, Object>> debugRedisRaw(
             @RequestParam String email) {
         java.util.Map<String, Object> result = new java.util.HashMap<>();

@@ -13,6 +13,15 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    /**
+     * WebSocket允许的域名白名单
+     * 安全加固：仅允许特定域名连接，防止恶意WebSocket连接
+     */
+    private static final String[] ALLOWED_ORIGINS = {
+            "https://safevaultapp.top",  // 生产环境域名
+            "safevault://"               // Deep link scheme（用于应用内跳转）
+    };
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         // 启用简单消息代理
@@ -26,12 +35,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // 纯WebSocket端点（不使用SockJS）- 用于原生WebSocket客户端（如Android OkHttp）
+        // 安全加固：限制允许的来源域名
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*");
+                .setAllowedOriginPatterns(ALLOWED_ORIGINS);
 
         // SockJS端点（用于降级支持）- 用于浏览器等需要降级的客户端
+        // 安全加固：限制允许的来源域名
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOriginPatterns(ALLOWED_ORIGINS)
                 .withSockJS();
     }
 }

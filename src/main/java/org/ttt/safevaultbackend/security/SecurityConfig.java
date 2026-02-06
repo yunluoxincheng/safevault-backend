@@ -54,10 +54,20 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * CORS允许的域名白名单
+     * 安全加固：仅允许特定域名访问，防止CSRF攻击
+     */
+    private static final List<String> ALLOWED_ORIGINS = Arrays.asList(
+            "https://safevaultapp.top",  // 生产环境域名
+            "safevault://"               // Deep link scheme（用于应用内跳转）
+    );
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        // 安全加固：使用setAllowedOrigins而非setAllowedOriginPatterns，严格限制域名
+        configuration.setAllowedOrigins(ALLOWED_ORIGINS);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

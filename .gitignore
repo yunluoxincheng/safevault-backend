@@ -31,3 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment & Sensitive Files (Security Hardening 2.7) ###
+.env
+.env.local
+*.p12
+*.jks
+*.pem
+application-local.yml

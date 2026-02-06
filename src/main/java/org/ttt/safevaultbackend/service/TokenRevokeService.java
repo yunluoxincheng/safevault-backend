@@ -166,13 +166,10 @@ public class TokenRevokeService {
 
     /**
      * 获取签名密钥（与 JwtTokenProvider 保持一致）
-     * 注意：这里需要从 JwtTokenProvider 获取或注入配置
+     * 安全加固 2.6：使用 JwtTokenProvider 的密钥，避免硬编码
      */
     private javax.crypto.SecretKey getSigningKey() {
-        // 这里简化实现，实际应该从 JwtTokenProvider 获取
-        // 由于循环依赖问题，这里使用反射或重新创建密钥
-        // 生产环境建议重构为共享密钥生成逻辑
-        String jwtSecret = "your-256-bit-secret-key-should-be-at-least-32-characters-long";
-        return io.jsonwebtoken.security.Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        // 从 JwtTokenProvider 获取签名密钥，确保一致性
+        return tokenProvider.getSigningKeyPublic();
     }
 }

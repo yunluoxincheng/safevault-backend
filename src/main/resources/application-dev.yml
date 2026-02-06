@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/safevault
-    username: postgres
-    password: 123456
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -23,7 +23,7 @@ spring:
     host: smtpdm.aliyun.com
     port: 25
     username: verify@mail.safevaultapp.top
-    password: sAZD2f64Ii90R9
+    password: ${MAIL_PASSWORD}
     from: verify@mail.safevaultapp.top
     properties:
       mail:

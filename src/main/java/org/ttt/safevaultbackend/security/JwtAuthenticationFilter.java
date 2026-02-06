@@ -10,20 +10,25 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.ttt.safevaultbackend.service.TokenRevokeService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
 /**
  * JWT 认证过滤器
+ * 安全加固：添加Token撤销检查（2.4）
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
+    private final TokenRevokeService tokenRevokeService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider) {
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider,
+                                    TokenRevokeService tokenRevokeService) {
         this.tokenProvider = tokenProvider;
+        this.tokenRevokeService = tokenRevokeService;
     }
 
     @Override
@@ -45,6 +50,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (tokenProvider.validateToken(jwt)) {
                     String userId = tokenProvider.getUserIdFromToken(jwt);
+                    String deviceId = request.getHeader("X-Device-ID");
+
+                    // 安全加固：检查Token是否已被撤销（2.4）
+                    if (tokenRevokeService.isTokenRevoked(jwt, userId, deviceId)) {
+                        logger.warn("Token已撤销: userId={}, deviceId={}, path={}",
+                                    userId, deviceId, requestPath);
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write("{\"error\":\"Token已撤销，请重新登录\"}");
+                        return;
+                    }
+
                     logger.info("JWT validated successfully for user: " + userId + " on: " + requestPath);
 
                     UsernamePasswordAuthenticationToken authentication =

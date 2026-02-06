@@ -29,7 +29,7 @@ spring:
     host: smtpdm.aliyun.com
     port: 465
     username: verify@mail.safevaultapp.top
-    password: sAZD2f64Ii90R9
+    password: ${MAIL_PASSWORD}
     from: verify@mail.safevaultapp.top
     properties:
       mail:
@@ -44,7 +44,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:123456}
+      password: ${REDIS_PASSWORD}
       database: 0
       timeout: 3000ms
       lettuce:
@@ -61,7 +61,7 @@ server:
   ssl:
     enabled: true
     key-store: classpath:keystore.p12
-    key-store-password: 123456
+    key-store-password: ${KEYSTORE_PASSWORD}
     key-store-type: PKCS12
     key-alias: safevault
 

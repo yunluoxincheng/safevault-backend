@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -18,6 +19,7 @@ import java.util.Date;
 public class JwtTokenProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
+    private static final int MIN_SECRET_LENGTH = 32;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -27,6 +29,36 @@ public class JwtTokenProvider {
 
     @Value("${jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;
+
+    /**
+     * 启动时验证 JWT 密钥配置
+     * 安全加固：确保密钥长度符合安全要求
+     */
+    @PostConstruct
+    public void validateJwtSecret() {
+        if (jwtSecret == null || jwtSecret.isEmpty()) {
+            String errorMsg = "JWT_SECRET 环境变量未设置！应用无法启动。";
+            logger.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
+        }
+
+        if (jwtSecret.length() < MIN_SECRET_LENGTH) {
+            String errorMsg = String.format(
+                "JWT_SECRET 密钥长度不足！当前长度: %d，要求至少: %d 字符。请使用强随机密钥。",
+                jwtSecret.length(), MIN_SECRET_LENGTH
+            );
+            logger.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
+        }
+
+        // 检查是否使用了默认/示例密钥
+        if (jwtSecret.contains("change") || jwtSecret.contains("your-secret-key") ||
+            jwtSecret.contains("example") || jwtSecret.contains("test-only")) {
+            logger.warn("警告：JWT_SECRET 似乎是默认或示例密钥！生产环境请使用强随机密钥。");
+        }
+
+        logger.info("JWT 密钥验证通过（长度: {} 字符）", jwtSecret.length());
+    }
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
@@ -122,5 +154,13 @@ public class JwtTokenProvider {
      */
     public long getAccessTokenExpirationSeconds() {
         return accessTokenExpiration / 1000;
+    }
+
+    /**
+     * 获取签名密钥（供其他服务使用）
+     * 安全加固：公开此方法避免其他服务硬编码密钥
+     */
+    public SecretKey getSigningKeyPublic() {
+        return getSigningKey();
     }
 }
