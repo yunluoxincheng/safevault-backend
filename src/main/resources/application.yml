@@ -98,6 +98,25 @@ registration:
   cleanup-scheduled-enabled: true  # 是否启用定时清理任务
   cleanup-scheduled-interval-ms: 300000  # 定时清理任务执行间隔（毫秒），默认5分钟
 
+# Password Hash Configuration
+# 支持通过环境变量配置 Argon2id 参数
+security:
+  password-hash:
+    # 密码哈希算法：argon2id（推荐）或 pbkdf2（向后兼容）
+    algorithm: ${PASSWORD_HASH_ALGORITHM:argon2id}
+    # Argon2id 参数配置（通过环境变量可覆盖）
+    argon2:
+      # 时间成本（迭代次数）: 环境变量 ARGON2_TIME_COST，默认 3
+      time-cost: ${ARGON2_TIME_COST:3}
+      # 内存成本（KB）: 环境变量 ARGON2_MEMORY_COST，默认 131072 (128MB)
+      memory-cost: ${ARGON2_MEMORY_COST:131072}
+      # 并行度（线程数）: 环境变量 ARGON2_PARALLELISM，默认 4
+      parallelism: ${ARGON2_PARALLELISM:4}
+      # 输出长度（字节）: 环境变量 ARGON2_OUTPUT_LENGTH，默认 32
+      output-length: ${ARGON2_OUTPUT_LENGTH:32}
+      # 盐值长度（字节）: 环境变量 ARGON2_SALT_LENGTH，默认 16
+      salt-length: ${ARGON2_SALT_LENGTH:16}
+
 # Redis Configuration
 
 # Logging

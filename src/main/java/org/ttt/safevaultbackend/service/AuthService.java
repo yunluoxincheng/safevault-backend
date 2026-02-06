@@ -21,6 +21,7 @@ import org.ttt.safevaultbackend.exception.BusinessException;
 import org.ttt.safevaultbackend.exception.ResourceNotFoundException;
 import org.ttt.safevaultbackend.repository.UserRepository;
 import org.ttt.safevaultbackend.repository.UserPrivateKeyRepository;
+import org.ttt.safevaultbackend.security.Argon2PasswordHasher;
 import org.ttt.safevaultbackend.security.JwtTokenProvider;
 import org.ttt.safevaultbackend.service.EmailService;
 import org.ttt.safevaultbackend.service.PendingUserService;
@@ -51,6 +52,7 @@ public class AuthService {
     private final TokenRevokeService tokenRevokeService;
     private final VerificationEventService verificationEventService;
     private final EmailVerificationHistoryService verificationHistoryService;
+    private final Argon2PasswordHasher argon2PasswordHasher;
 
     @Value("${email.verification.token-expiration-minutes:10}")
     private int tokenExpirationMinutes;
@@ -831,9 +833,13 @@ public class AuthService {
             throw new BusinessException("REGISTRATION_ALREADY_COMPLETED", "注册已完成，请直接登录");
         }
 
-        // 保存密码验证器和盐值
+        // 保存密码验证器和盐值（前端已经使用Argon2id哈希密码）
         user.setPasswordVerifier(request.getPasswordVerifier());
         user.setPasswordSalt(request.getSalt());
+
+        // 设置密码哈希算法为 Argon2id（新用户默认使用）
+        user.setPasswordHashAlgorithm("ARGON2ID");
+        log.info("新用户使用 Argon2id 密码哈希算法: userId={}", user.getUserId());
 
         // 保存公钥和加密的私钥
         user.setPublicKey(request.getPublicKey());
@@ -996,5 +1002,64 @@ public class AuthService {
      */
     public java.util.Map<String, Object> debugGetRedisRawValue(String email) {
         return pendingUserService.debugGetRawValue(email);
+    }
+
+    // ========== 密码哈希验证方法（安全加固第二阶段）==========
+
+    /**
+     * 验证用户密码（使用 Argon2id）
+     *
+     * @param user 用户实体
+     * @param password 明文密码
+     * @return 密码是否匹配
+     */
+    public boolean verifyPassword(User user, String password) {
+        if (user == null || password == null) {
+            return false;
+        }
+
+        String storedHash = user.getPasswordVerifier();
+        if (storedHash == null || storedHash.isEmpty()) {
+            log.warn("用户密码验证器为空: userId={}", user.getUserId());
+            return false;
+        }
+
+        boolean verified = argon2PasswordHasher.verify(storedHash, password);
+        if (verified) {
+            log.info("密码验证成功: userId={}", user.getUserId());
+        } else {
+            log.warn("密码验证失败: userId={}", user.getUserId());
+        }
+        return verified;
+    }
+
+    /**
+     * 使用 Argon2id 哈希密码
+     *
+     * @param password 明文密码
+     * @return Argon2id 哈希值（包含盐值和参数）
+     */
+    public String hashPasswordWithArgon2(String password) {
+        if (password == null || password.isEmpty()) {
+            throw new IllegalArgumentException("密码不能为空");
+        }
+        return argon2PasswordHasher.hash(password);
+    }
+
+    /**
+     * 检查用户密码哈希是否需要重新计算
+     */
+    public boolean needsPasswordRehash(User user) {
+        if (user == null || user.getPasswordVerifier() == null) {
+            return false;
+        }
+        return argon2PasswordHasher.needsRehash(user.getPasswordVerifier());
+    }
+
+    /**
+     * 获取密码哈希算法信息
+     */
+    public String getPasswordHashAlgorithmInfo() {
+        return argon2PasswordHasher.getParametersInfo();
     }
 }

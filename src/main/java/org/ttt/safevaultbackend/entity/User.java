@@ -87,6 +87,12 @@ public class User {
     @Column(name = "password_salt", length = 64)
     private String passwordSalt;
 
+    // 密码哈希算法标识（安全加固第二阶段）
+    // 开发环境：统一使用 Argon2id
+    @Column(name = "password_hash_algorithm", length = 20, nullable = false)
+    @Builder.Default
+    private String passwordHashAlgorithm = "ARGON2ID";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

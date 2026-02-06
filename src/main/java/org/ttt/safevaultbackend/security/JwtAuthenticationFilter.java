@@ -54,8 +54,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     // 安全加固：检查Token是否已被撤销（2.4）
                     if (tokenRevokeService.isTokenRevoked(jwt, userId, deviceId)) {
-                        logger.warn("Token已撤销: userId={}, deviceId={}, path={}",
-                                    userId, deviceId, requestPath);
+                        logger.warn("Token已撤销: userId=" + userId + ", deviceId=" + deviceId + ", path=" + requestPath);
                         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                         response.setContentType("application/json;charset=UTF-8");
                         response.getWriter().write("{\"error\":\"Token已撤销，请重新登录\"}");
