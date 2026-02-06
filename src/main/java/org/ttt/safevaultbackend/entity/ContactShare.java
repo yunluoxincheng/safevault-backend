@@ -38,6 +38,15 @@ public class ContactShare {
     @Column(name = "encrypted_data", nullable = false, columnDefinition = "TEXT")
     private String encryptedData;
 
+    /**
+     * RSA加密版本
+     * v1 = PKCS1Padding（不安全，仅向后兼容）
+     * v2 = OAEPWithSHA-256AndMGF1Padding（安全）
+     */
+    @Column(name = "encryption_version", nullable = false, length = 10)
+    @Builder.Default
+    private String encryptionVersion = "v1";
+
     @Column(name = "can_view", nullable = false)
     @Builder.Default
     private boolean canView = true;

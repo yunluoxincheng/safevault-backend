@@ -67,6 +67,12 @@ public class ContactShareService {
             throw new BusinessException("SHARE_ALREADY_EXISTS", "已存在对此密码的活跃分享");
         }
 
+        // 验证加密版本
+        String encryptionVersion = request.getEncryptionVersion();
+        if (encryptionVersion == null || (!"v1".equals(encryptionVersion) && !"v2".equals(encryptionVersion))) {
+            throw new BusinessException("INVALID_ENCRYPTION_VERSION", "加密版本必须是 v1 或 v2");
+        }
+
         // 创建分享
         String shareId = UUID.randomUUID().toString();
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(request.getExpiresInMinutes());
@@ -80,6 +86,7 @@ public class ContactShareService {
                 .toUser(toUser)
                 .passwordId(request.getPasswordId())
                 .encryptedData(serializeEncryptedData(encryptedData))
+                .encryptionVersion(encryptionVersion)
                 .canView(request.getPermission().isCanView())
                 .canSave(request.getPermission().isCanSave())
                 .isRevocable(request.getPermission().isRevocable())
@@ -92,7 +99,7 @@ public class ContactShareService {
         // 发送实时通知
         sendShareNotification(toUser.getUserId(), fromUser, shareId, "NEW_SHARE");
 
-        log.info("Created contact share: {} from {} to {}", shareId, fromUserId, request.getToUserId());
+        log.info("Created contact share: {} from {} to {} (encryption: {})", shareId, fromUserId, request.getToUserId(), encryptionVersion);
 
         return ContactShareResponse.builder()
                 .shareId(shareId)
@@ -100,6 +107,7 @@ public class ContactShareService {
                 .status(contactShare.getStatus())
                 .createdAt(contactShare.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
                 .expiresAt(expiresAt.toEpochSecond(ZoneOffset.UTC))
+                .encryptionVersion(encryptionVersion)
                 .build();
     }
 
@@ -151,6 +159,7 @@ public class ContactShareService {
                 .createdAt(share.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
                 .expiresAt(share.getExpiresAt() != null ? share.getExpiresAt().toEpochSecond(ZoneOffset.UTC) : null)
                 .acceptedAt(share.getAcceptedAt() != null ? share.getAcceptedAt().toEpochSecond(ZoneOffset.UTC) : null)
+                .encryptionVersion(share.getEncryptionVersion())
                 .build();
     }
 
@@ -397,6 +406,7 @@ public class ContactShareService {
                 .status(share.getStatus())
                 .createdAt(share.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
                 .expiresAt(share.getExpiresAt() != null ? share.getExpiresAt().toEpochSecond(ZoneOffset.UTC) : null)
+                .encryptionVersion(share.getEncryptionVersion())
                 .build();
     }
 
@@ -430,6 +440,7 @@ public class ContactShareService {
                 .createdAt(share.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
                 .expiresAt(share.getExpiresAt() != null ? share.getExpiresAt().toEpochSecond(ZoneOffset.UTC) : null)
                 .acceptedAt(share.getAcceptedAt() != null ? share.getAcceptedAt().toEpochSecond(ZoneOffset.UTC) : null)
+                .encryptionVersion(share.getEncryptionVersion())
                 .build();
     }
 }

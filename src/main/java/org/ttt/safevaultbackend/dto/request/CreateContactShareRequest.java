@@ -42,4 +42,13 @@ public class CreateContactShareRequest {
 
     @NotNull(message = "权限设置不能为空")
     private SharePermission permission;
+
+    /**
+     * RSA加密版本
+     * v1 = PKCS1Padding（不安全，仅向后兼容）
+     * v2 = OAEPWithSHA-256AndMGF1Padding（安全，推荐）
+     * 默认使用 v2
+     */
+    @Builder.Default
+    private String encryptionVersion = "v2";
 }

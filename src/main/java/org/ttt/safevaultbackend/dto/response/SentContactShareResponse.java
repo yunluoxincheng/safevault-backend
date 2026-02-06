@@ -23,4 +23,11 @@ public class SentContactShareResponse {
     private ContactShareStatus status;
     private Long createdAt;
     private Long expiresAt;
+
+    /**
+     * RSA加密版本
+     * v1 = PKCS1Padding（不安全，仅向后兼容）
+     * v2 = OAEPWithSHA-256AndMGF1Padding（安全）
+     */
+    private String encryptionVersion;
 }

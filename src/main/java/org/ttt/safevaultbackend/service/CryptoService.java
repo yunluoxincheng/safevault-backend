@@ -20,7 +20,16 @@ import java.util.Base64;
 public class CryptoService {
 
     private static final String AES_GCM_NO_PADDING = "AES/GCM/NoPadding";
+
+    // RSA填充模式常量
+    /** PKCS1Padding（v1）- 不安全，仅向后兼容 */
     private static final String RSA_ECB_PKCS1_PADDING = "RSA/ECB/PKCS1Padding";
+    /** OAEPWithSHA-256AndMGF1Padding（v2）- 安全，新分享使用 */
+    private static final String RSA_ECB_OAEP_PADDING = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+
+    // 默认使用v2（OAEP）
+    private static final String DEFAULT_ENCRYPTION_VERSION = "v2";
+
     private static final int GCM_TAG_LENGTH = 128; // 位
     private static final int GCM_IV_LENGTH = 12;   // 字节
     private static final int AES_KEY_SIZE = 256;   // 位
@@ -48,9 +57,25 @@ public class CryptoService {
 
     /**
      * 使用接收方公钥加密会话密钥
+     * @deprecated 使用 encryptSessionKey(SecretKey, PublicKey, String) 替代，支持版本选择
      */
+    @Deprecated
     public String encryptSessionKey(SecretKey sessionKey, PublicKey receiverPublicKey) throws Exception {
-        Cipher cipher = Cipher.getInstance(RSA_ECB_PKCS1_PADDING);
+        return encryptSessionKey(sessionKey, receiverPublicKey, DEFAULT_ENCRYPTION_VERSION);
+    }
+
+    /**
+     * 使用接收方公钥加密会话密钥（支持版本选择）
+     *
+     * @param sessionKey 会话密钥
+     * @param receiverPublicKey 接收方公钥
+     * @param version 加密版本：v1=PKCS1（不安全），v2=OAEP（安全）
+     * @return Base64编码的加密密钥
+     * @throws Exception 加密失败
+     */
+    public String encryptSessionKey(SecretKey sessionKey, PublicKey receiverPublicKey, String version) throws Exception {
+        String transformation = getRsaTransformation(version);
+        Cipher cipher = Cipher.getInstance(transformation);
         cipher.init(Cipher.ENCRYPT_MODE, receiverPublicKey);
         byte[] encryptedKey = cipher.doFinal(sessionKey.getEncoded());
         return Base64.getEncoder().encodeToString(encryptedKey);
@@ -58,12 +83,54 @@ public class CryptoService {
 
     /**
      * 使用接收方私钥解密会话密钥
+     * @deprecated 使用 decryptSessionKey(String, PrivateKey, String) 替代，支持版本选择
      */
+    @Deprecated
     public SecretKey decryptSessionKey(String encryptedSessionKey, PrivateKey receiverPrivateKey) throws Exception {
-        Cipher cipher = Cipher.getInstance(RSA_ECB_PKCS1_PADDING);
+        return decryptSessionKey(encryptedSessionKey, receiverPrivateKey, "v1");
+    }
+
+    /**
+     * 使用接收方私钥解密会话密钥（支持版本选择）
+     *
+     * @param encryptedSessionKey Base64编码的加密密钥
+     * @param receiverPrivateKey 接收方私钥
+     * @param version 加密版本：v1=PKCS1（不安全），v2=OAEP（安全）
+     * @return 解密后的会话密钥
+     * @throws Exception 解密失败
+     */
+    public SecretKey decryptSessionKey(String encryptedSessionKey, PrivateKey receiverPrivateKey, String version) throws Exception {
+        String transformation = getRsaTransformation(version);
+        Cipher cipher = Cipher.getInstance(transformation);
         cipher.init(Cipher.DECRYPT_MODE, receiverPrivateKey);
         byte[] decryptedKey = cipher.doFinal(Base64.getDecoder().decode(encryptedSessionKey));
         return new SecretKeySpec(decryptedKey, "AES");
+    }
+
+    /**
+     * 根据版本获取RSA转换模式
+     *
+     * @param version 加密版本：v1 或 v2
+     * @return RSA转换模式字符串
+     * @throws IllegalArgumentException 如果版本不支持
+     */
+    private String getRsaTransformation(String version) {
+        if ("v2".equals(version)) {
+            return RSA_ECB_OAEP_PADDING;
+        } else if ("v1".equals(version)) {
+            return RSA_ECB_PKCS1_PADDING;
+        } else {
+            throw new IllegalArgumentException("不支持的加密版本: " + version + "（仅支持 v1 或 v2）");
+        }
+    }
+
+    /**
+     * 获取默认加密版本（v2=OAEP）
+     *
+     * @return 默认加密版本
+     */
+    public String getDefaultEncryptionVersion() {
+        return DEFAULT_ENCRYPTION_VERSION;
     }
 
     /**
