@@ -10,6 +10,7 @@ import org.ttt.safevaultbackend.dto.response.AuthResponse;
 import org.ttt.safevaultbackend.dto.response.CompleteRegistrationResponse;
 import org.ttt.safevaultbackend.dto.response.EmailLoginResponse;
 import org.ttt.safevaultbackend.dto.response.EmailRegistrationResponse;
+import org.ttt.safevaultbackend.dto.response.LoginPrecheckResponse;
 import org.ttt.safevaultbackend.dto.response.LogoutResponse;
 import org.ttt.safevaultbackend.dto.response.VerifyEmailResponse;
 import org.ttt.safevaultbackend.dto.response.VerificationStatusResponse;
@@ -55,6 +56,7 @@ public class AuthService {
     private final VerificationEventService verificationEventService;
     private final EmailVerificationHistoryService verificationHistoryService;
     private final Argon2PasswordHasher argon2PasswordHasher;
+    private final NonceService nonceService;
 
     @Value("${email.verification.token-expiration-minutes:10}")
     private int tokenExpirationMinutes;
@@ -515,8 +517,41 @@ public class AuthService {
     // ========== 统一邮箱认证方法 ==========
 
     /**
+     * 登录预检查（Challenge-Response 机制第一步）
+     * 生成并返回服务器挑战码（nonce）
+     *
+     * @param request 登录预检查请求
+     * @return 登录预检查响应，包含 nonce 和过期时间
+     */
+    @Transactional(readOnly = true)
+    public LoginPrecheckResponse loginPrecheck(LoginPrecheckRequest request) {
+        // 检查用户是否存在
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", request.getEmail()));
+
+        // 检查邮箱是否已验证
+        if (!user.getEmailVerified()) {
+            throw new BusinessException("EMAIL_NOT_VERIFIED", "请先验证邮箱后再登录");
+        }
+
+        // 生成 nonce
+        String nonce = nonceService.generateNonce(request.getEmail());
+
+        // 计算过期时间
+        long expiresAt = System.currentTimeMillis() / 1000 + 30; // 30 秒后过期
+
+        log.info("登录预检查成功: email={}, nonce={}", request.getEmail(), nonce);
+
+        return LoginPrecheckResponse.builder()
+                .nonce(nonce)
+                .expiresAt(expiresAt)
+                .userId(user.getUserId())
+                .build();
+    }
+
+    /**
      * 邮箱登录（支持设备管理和并发控制）
-     * 安全加固第三阶段：添加并发登录控制，最多5台设备
+     * 安全加固第三阶段：使用 Challenge-Response 机制防止重放攻击
      *
      * @param request 邮箱登录请求
      * @return 邮箱登录响应
@@ -532,8 +567,9 @@ public class AuthService {
             throw new BusinessException("EMAIL_NOT_VERIFIED", "请先验证邮箱后再登录");
         }
 
-        // 验证派生密钥签名（使用时间戳验证，防止重放攻击）
-        verifyDerivedKeySignature(request.getEmail(), request.getDeviceId(), request.getDerivedKeySignature(), request.getTimestamp());
+        // 验证派生密钥签名（使用 nonce，防止重放攻击）
+        verifyDerivedKeySignature(request.getEmail(), request.getDeviceId(),
+                request.getDerivedKeySignature(), request.getNonce());
 
         // 获取当前设备列表
         List<DeviceInfo> devices = getDevicesList(user);
@@ -725,29 +761,30 @@ public class AuthService {
     }
 
     /**
-     * 验证邮箱登录的派生密钥签名
-     * 签名格式：Base64(HMAC-SHA256(email + deviceId + timestamp, derivedKey))
+     * 验证邮箱登录的派生密钥签名（Challenge-Response 机制）
+     * 签名格式：Base64(HMAC-SHA256(email + deviceId + nonce, derivedKey))
      *
-     * 安全加固第三阶段：使用派生密钥验证签名（零知识证明）
+     * 安全加固第三阶段：使用服务器生成的 nonce 防止重放攻击
      *
      * @param email    邮箱
      * @param deviceId 设备ID
      * @param signature Base64编码的HMAC签名
-     * @param timestamp 时间戳（毫秒）
+     * @param nonce    服务器生成的挑战码
      * @throws BusinessException 验证失败时抛出异常
      */
-    private void verifyDerivedKeySignature(String email, String deviceId, String signature, Long timestamp) {
-        // 时间戳验证：允许5分钟的时间窗口，防止重放攻击
-        long currentTime = System.currentTimeMillis();
-        long timeDiff = timestamp != null ? Math.abs(currentTime - timestamp) : Long.MAX_VALUE;
-
-        // 允许5分钟（300000毫秒）的时间差
-        if (timeDiff > 300000) {
-            throw new BusinessException("INVALID_TIMESTAMP", "请求时间戳无效或已过期");
-        }
-
+    private void verifyDerivedKeySignature(String email, String deviceId, String signature, String nonce) {
         if (signature == null || signature.isEmpty()) {
             throw new BusinessException("INVALID_SIGNATURE", "派生密钥签名不能为空");
+        }
+
+        if (nonce == null || nonce.isEmpty()) {
+            throw new BusinessException("INVALID_NONCE", "挑战码不能为空");
+        }
+
+        // 验证并消费 nonce（一次性使用）
+        if (!nonceService.validateAndConsumeNonce(nonce, email)) {
+            log.warn("Nonce 验证失败: email={}, nonce={}", email, nonce);
+            throw new BusinessException("INVALID_NONCE", "挑战码无效或已过期");
         }
 
         // 获取用户以验证签名
@@ -764,17 +801,19 @@ public class AuthService {
         }
 
         // 计算期望的签名（使用派生密钥字节数组）
-        String data = email + deviceId + (timestamp != null ? timestamp : currentTime);
+        String data = email + deviceId + nonce;
         String expectedSignature = computeHmacSignatureWithDerivedKey(data, derivedKeyBase64);
 
         // 时间安全比较签名
         if (!MessageDigest.isEqual(
                 expectedSignature.getBytes(StandardCharsets.UTF_8),
                 signature.getBytes(StandardCharsets.UTF_8))) {
-            log.warn("HMAC签名验证失败: email={}, deviceId={}, expected={}, provided={}",
-                email, deviceId, expectedSignature, signature);
+            log.warn("HMAC签名验证失败: email={}, deviceId={}, nonce={}, expected={}, provided={}",
+                email, deviceId, nonce, expectedSignature, signature);
             throw new BusinessException("INVALID_SIGNATURE", "签名验证失败");
         }
+
+        log.info("签名验证成功: email={}, deviceId={}, nonce={}", email, deviceId, nonce);
     }
 
     /**

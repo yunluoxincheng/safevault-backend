@@ -6,8 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 零知识架构登录预检查响应
- * 返回验证器参数供客户端进行密钥派生
+ * 登录预检查响应（Challenge-Response 机制）
+ * 返回服务器生成的挑战码（nonce）供客户端签名
  */
 @Data
 @Builder
@@ -15,16 +15,20 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class LoginPrecheckResponse {
 
+    /**
+     * 服务器生成的随机挑战码（nonce）
+     * 客户端需要用派生密钥对 nonce 进行签名
+     */
+    private String nonce;
+
+    /**
+     * Nonce 过期时间（Unix 时间戳，秒）
+     * 默认 30 秒有效期
+     */
+    private Long expiresAt;
+
+    /**
+     * 用户ID（用于前端显示）
+     */
     private String userId;
-    private String username;
-    private String displayName;
-    private String publicKey; // RSA 公钥（用于分享）
-
-    // 零知识认证参数
-    private String passwordVerifier; // 存储的验证器
-    private String passwordSalt; // Salt
-    private Integer passwordIterations; // 迭代次数
-
-    private String encryptedPrivateKey; // 加密的私钥
-    private String privateKeyIv; // 私钥 IV
 }

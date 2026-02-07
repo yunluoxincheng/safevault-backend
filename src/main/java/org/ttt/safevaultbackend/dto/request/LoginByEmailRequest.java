@@ -8,7 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 邮箱登录请求
+ * 邮箱登录请求（Challenge-Response 机制）
  */
 @Data
 @Builder
@@ -29,7 +29,12 @@ public class LoginByEmailRequest {
     @NotBlank(message = "派生密钥签名不能为空")
     private String derivedKeySignature;
 
-    private Long timestamp;
+    /**
+     * 服务器生成的挑战码（nonce）
+     * 客户端使用派生密钥对 nonce 进行签名
+     */
+    @NotBlank(message = "挑战码不能为空")
+    private String nonce;
 
     private String deviceType; // 手机、平板、电脑等
 

@@ -15,6 +15,7 @@ import org.ttt.safevaultbackend.dto.response.CompleteRegistrationResponse;
 import org.ttt.safevaultbackend.dto.response.DeviceListResponse;
 import org.ttt.safevaultbackend.dto.response.EmailLoginResponse;
 import org.ttt.safevaultbackend.dto.response.EmailRegistrationResponse;
+import org.ttt.safevaultbackend.dto.response.LoginPrecheckResponse;
 import org.ttt.safevaultbackend.dto.response.LogoutResponse;
 import org.ttt.safevaultbackend.dto.response.RemoveDeviceResponse;
 import org.ttt.safevaultbackend.dto.response.VerifyEmailResponse;
@@ -114,11 +115,20 @@ public class AuthController extends BaseController {
     }
 
     @PostMapping("/login-by-email")
-    @Operation(summary = "邮箱登录", description = "使用邮箱和派生密钥签名登录")
+    @Operation(summary = "邮箱登录", description = "使用邮箱和派生密钥签名登录（Challenge-Response 机制）")
     @RateLimit(requests = 5, per = "minute")
     public ResponseEntity<EmailLoginResponse> loginByEmail(
             @Valid @RequestBody LoginByEmailRequest request) {
         EmailLoginResponse response = authService.loginByEmail(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/login-precheck")
+    @Operation(summary = "登录预检查", description = "获取服务器挑战码（nonce），用于 Challenge-Response 登录")
+    @RateLimit(requests = 10, per = "minute")
+    public ResponseEntity<LoginPrecheckResponse> loginPrecheck(
+            @Valid @RequestBody LoginPrecheckRequest request) {
+        LoginPrecheckResponse response = authService.loginPrecheck(request);
         return ResponseEntity.ok(response);
     }
 
