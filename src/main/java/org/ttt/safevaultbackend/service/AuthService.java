@@ -27,6 +27,8 @@ import org.ttt.safevaultbackend.service.EmailService;
 import org.ttt.safevaultbackend.service.PendingUserService;
 import org.ttt.safevaultbackend.service.VerificationTokenService;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -513,7 +515,8 @@ public class AuthService {
     // ========== 统一邮箱认证方法 ==========
 
     /**
-     * 邮箱登录（支持设备管理）
+     * 邮箱登录（支持设备管理和并发控制）
+     * 安全加固第三阶段：添加并发登录控制，最多5台设备
      *
      * @param request 邮箱登录请求
      * @return 邮箱登录响应
@@ -540,7 +543,37 @@ public class AuthService {
                 .noneMatch(d -> d.getDeviceId().equals(request.getDeviceId()));
 
         if (isNewDevice) {
-            // 新设备：添加到设备列表
+            // 新设备：检查设备数量限制
+            int maxDevices = user.getMaxDevices() != null ? user.getMaxDevices() : 5;
+
+            if (devices.size() >= maxDevices) {
+                // 已达到上限，撤销最久未使用的设备
+                DeviceInfo oldestDevice = devices.stream()
+                        .min((d1, d2) -> {
+                            LocalDateTime t1 = d1.getLastActiveAt() != null ? d1.getLastActiveAt() : d1.getCreatedAt();
+                            LocalDateTime t2 = d2.getLastActiveAt() != null ? d2.getLastActiveAt() : d2.getCreatedAt();
+                            return t1.compareTo(t2);
+                        })
+                        .orElseThrow();
+
+                // 撤销最旧设备的Token
+                try {
+                    tokenRevokeService.revokeDevice(
+                        oldestDevice.getDeviceId(),
+                        user.getUserId()
+                    );
+                    log.info("达到设备数量上限，撤销最旧设备: userId={}, deviceId={}, oldestDeviceId={}",
+                        user.getUserId(), request.getDeviceId(), oldestDevice.getDeviceId());
+                } catch (Exception e) {
+                    log.warn("撤销最旧设备失败，继续添加新设备: userId={}, oldestDeviceId={}",
+                        user.getUserId(), oldestDevice.getDeviceId(), e);
+                }
+
+                // 从列表中移除
+                devices.removeIf(d -> d.getDeviceId().equals(oldestDevice.getDeviceId()));
+            }
+
+            // 添加新设备
             DeviceInfo newDevice = DeviceInfo.builder()
                     .deviceId(request.getDeviceId())
                     .deviceName(request.getDeviceName())
@@ -573,6 +606,7 @@ public class AuthService {
                     .devices(devices)
                     .isNewDevice(true)
                     .message("新设备登录成功")
+                    .maxDevices(maxDevices)
                     .build();
 
         } else {
@@ -608,6 +642,7 @@ public class AuthService {
                     .emailVerified(user.getEmailVerified())
                     .devices(devices)
                     .isNewDevice(false)
+                    .maxDevices(user.getMaxDevices() != null ? user.getMaxDevices() : 5)
                     .build();
         }
     }
@@ -693,8 +728,7 @@ public class AuthService {
      * 验证邮箱登录的派生密钥签名
      * 签名格式：Base64(HMAC-SHA256(email + deviceId + timestamp, derivedKey))
      *
-     * 注意：当前实现简化了签名验证，仅验证时间戳
-     * 完整实现需要客户端使用派生密钥生成HMAC签名，服务器使用存储的派生密钥验证
+     * 安全加固第三阶段：使用派生密钥验证签名（零知识证明）
      *
      * @param email    邮箱
      * @param deviceId 设备ID
@@ -712,21 +746,85 @@ public class AuthService {
             throw new BusinessException("INVALID_TIMESTAMP", "请求时间戳无效或已过期");
         }
 
-        // 当前实现：仅验证签名不为空，实际HMAC验证需要存储派生密钥
-        // 生产环境应实现完整的HMAC验证：
-        // 1. 从数据库获取用户存储的派生密钥相关数据
-        // 2. 使用相同的派生密钥计算HMAC
-        // 3. 比较计算结果与提供的签名
-
         if (signature == null || signature.isEmpty()) {
             throw new BusinessException("INVALID_SIGNATURE", "派生密钥签名不能为空");
         }
 
-        // 简化验证：检查签名格式（Base64编码）
+        // 获取用户以验证签名
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+
+        // 使用派生密钥验证器作为HMAC密钥
+        // 注意：passwordVerifier 存储的是 PBKDF2 派生密钥的 Base64 编码
+        // 客户端使用相同的派生密钥生成签名，实现零知识证明
+        String derivedKeyBase64 = user.getPasswordVerifier();
+
+        if (derivedKeyBase64 == null || derivedKeyBase64.isEmpty()) {
+            throw new BusinessException("INVALID_SIGNATURE", "用户派生密钥未配置，无法验证签名");
+        }
+
+        // 计算期望的签名（使用派生密钥字节数组）
+        String data = email + deviceId + (timestamp != null ? timestamp : currentTime);
+        String expectedSignature = computeHmacSignatureWithDerivedKey(data, derivedKeyBase64);
+
+        // 时间安全比较签名
+        if (!MessageDigest.isEqual(
+                expectedSignature.getBytes(StandardCharsets.UTF_8),
+                signature.getBytes(StandardCharsets.UTF_8))) {
+            log.warn("HMAC签名验证失败: email={}, deviceId={}, expected={}, provided={}",
+                email, deviceId, expectedSignature, signature);
+            throw new BusinessException("INVALID_SIGNATURE", "签名验证失败");
+        }
+    }
+
+    /**
+     * 计算HMAC-SHA256签名（使用派生密钥）
+     * 安全加固第三阶段：使用派生密钥字节数组作为HMAC密钥
+     *
+     * @param data 待签名数据
+     * @param derivedKeyBase64 Base64编码的派生密钥
+     * @return Base64编码的签名
+     */
+    private String computeHmacSignatureWithDerivedKey(String data, String derivedKeyBase64) {
         try {
-            java.util.Base64.getDecoder().decode(signature);
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("INVALID_SIGNATURE", "签名格式无效");
+            // 解码派生密钥
+            byte[] derivedKeyBytes = java.util.Base64.getDecoder().decode(derivedKeyBase64);
+
+            // 使用派生密钥字节数组作为 HMAC 密钥
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(
+                derivedKeyBytes,
+                "HmacSHA256"
+            );
+            mac.init(secretKey);
+            byte[] signature = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return java.util.Base64.getEncoder().encodeToString(signature);
+        } catch (Exception e) {
+            log.error("HMAC签名计算失败", e);
+            throw new BusinessException("SIGNATURE_ERROR", "签名计算失败");
+        }
+    }
+
+    /**
+     * 计算HMAC-SHA256签名（使用字符串密钥，用于其他场景）
+     *
+     * @param data 待签名数据
+     * @param key  HMAC密钥（字符串）
+     * @return Base64编码的签名
+     */
+    private String computeHmacSignature(String data, String key) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(
+                key.getBytes(StandardCharsets.UTF_8),
+                "HmacSHA256"
+            );
+            mac.init(secretKey);
+            byte[] signature = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return java.util.Base64.getEncoder().encodeToString(signature);
+        } catch (Exception e) {
+            log.error("HMAC签名计算失败", e);
+            throw new BusinessException("SIGNATURE_ERROR", "签名计算失败");
         }
     }
 

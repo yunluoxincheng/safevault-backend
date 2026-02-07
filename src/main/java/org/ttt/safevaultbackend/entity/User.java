@@ -70,6 +70,11 @@ public class User {
     @Column(name = "devices", columnDefinition = "TEXT")
     private String devices; // JSON array of registered devices
 
+    // 最大设备数限制（安全加固第三阶段）
+    @Column(name = "max_devices", nullable = false)
+    @Builder.Default
+    private Integer maxDevices = 5; // 默认最多5台设备同时登录
+
     // 分享用密钥对
     @Column(name = "public_key", nullable = false, columnDefinition = "TEXT")
     private String publicKey; // RSA 公钥

@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.ttt.safevaultbackend.annotation.RateLimit;
 import org.ttt.safevaultbackend.dto.request.*;
 import org.ttt.safevaultbackend.dto.response.AuthResponse;
 import org.ttt.safevaultbackend.dto.response.CompleteRegistrationResponse;
@@ -71,6 +72,7 @@ public class AuthController extends BaseController {
 
     @PostMapping("/register-email")
     @Operation(summary = "邮箱注册（第一步）", description = "使用邮箱和用户名发起注册，发送验证邮件")
+    @RateLimit(requests = 3, per = "minute")
     public ResponseEntity<EmailRegistrationResponse> registerWithEmail(
             @Valid @RequestBody EmailRegistrationRequest request) {
         EmailRegistrationResponse response = authService.registerWithEmail(request);
@@ -87,6 +89,7 @@ public class AuthController extends BaseController {
 
     @PostMapping("/resend-verification")
     @Operation(summary = "重新发送验证邮件", description = "重新发送邮箱验证邮件")
+    @RateLimit(requests = 10, per = "hour")
     public ResponseEntity<EmailRegistrationResponse> resendVerification(
             @Valid @RequestBody ResendVerificationRequest request) {
         EmailRegistrationResponse response = authService.resendVerificationEmail(request);
@@ -112,6 +115,7 @@ public class AuthController extends BaseController {
 
     @PostMapping("/login-by-email")
     @Operation(summary = "邮箱登录", description = "使用邮箱和派生密钥签名登录")
+    @RateLimit(requests = 5, per = "minute")
     public ResponseEntity<EmailLoginResponse> loginByEmail(
             @Valid @RequestBody LoginByEmailRequest request) {
         EmailLoginResponse response = authService.loginByEmail(request);

@@ -137,19 +137,22 @@ public class TokenRevokeService {
 
     /**
      * 获取令牌的过期时间
+     * 安全加固第三阶段：适配RS256算法，使用JwtTokenProvider解析
      *
      * @param token JWT 令牌
      * @return 过期时间
      */
     private LocalDateTime getTokenExpiration(String token) {
         try {
-            // 解析 JWT 获取过期时间
-            io.jsonwebtoken.JwtParserBuilder parserBuilder = io.jsonwebtoken.Jwts.parser();
+            // 直接使用JwtTokenProvider验证令牌
+            if (!tokenProvider.validateToken(token)) {
+                // 令牌无效，返回当前时间
+                return LocalDateTime.now();
+            }
 
-            // 使用与 JwtTokenProvider 相同的签名密钥
+            // 解析JWT获取过期时间
             io.jsonwebtoken.Jws<io.jsonwebtoken.Claims> jws =
-                parserBuilder
-                    .verifyWith(getSigningKey())
+                io.jsonwebtoken.Jwts.parser()
                     .build()
                     .parseSignedClaims(token);
 
@@ -165,11 +168,21 @@ public class TokenRevokeService {
     }
 
     /**
-     * 获取签名密钥（与 JwtTokenProvider 保持一致）
-     * 安全加固 2.6：使用 JwtTokenProvider 的密钥，避免硬编码
+     * 撤销设备的所有令牌
+     * 安全加固第三阶段：用于并发登录控制
+     *
+     * @param deviceId 要撤销的设备ID
+     * @param userId 用户ID
      */
-    private javax.crypto.SecretKey getSigningKey() {
-        // 从 JwtTokenProvider 获取签名密钥，确保一致性
-        return tokenProvider.getSigningKeyPublic();
+    @Transactional
+    public void revokeDevice(String deviceId, String userId) {
+        try {
+            // 标记该设备的所有令牌为已撤销
+            int count = revokedTokenRepository.markDeviceTokens(userId, deviceId, "DEVICE_LIMIT_EXCEEDED");
+            log.info("撤销设备令牌: userId={}, deviceId={}, count={}", userId, deviceId, count);
+        } catch (Exception e) {
+            log.error("撤销设备令牌失败: userId={}, deviceId={}", userId, deviceId, e);
+            throw new RuntimeException("撤销设备令牌失败", e);
+        }
     }
 }

@@ -8,21 +8,27 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.Date;
 
 /**
  * JWT Token 提供者
+ * 安全加固第三阶段：使用 RS256 非对称加密算法
  */
 @Component
 public class JwtTokenProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
-    private static final int MIN_SECRET_LENGTH = 32;
 
-    @Value("${jwt.secret}")
-    private String jwtSecret;
+    @Value("${jwt.rsa.private-key}")
+    private String rsaPrivateKey;
+
+    @Value("${jwt.rsa.public-key}")
+    private String rsaPublicKey;
 
     @Value("${jwt.access-token-expiration}")
     private long accessTokenExpiration;
@@ -30,42 +36,60 @@ public class JwtTokenProvider {
     @Value("${jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;
 
+    private PrivateKey privateKey;
+    private PublicKey publicKey;
+
     /**
-     * 启动时验证 JWT 密钥配置
-     * 安全加固：确保密钥长度符合安全要求
+     * 启动时加载 RSA 密钥对
+     * 安全加固第三阶段：使用 RSA 非对称加密
      */
     @PostConstruct
-    public void validateJwtSecret() {
-        if (jwtSecret == null || jwtSecret.isEmpty()) {
-            String errorMsg = "JWT_SECRET 环境变量未设置！应用无法启动。";
-            logger.error(errorMsg);
-            throw new IllegalStateException(errorMsg);
+    public void init() {
+        try {
+            if (rsaPrivateKey == null || rsaPrivateKey.isEmpty()) {
+                String errorMsg = "JWT_RSA_PRIVATE_KEY 环境变量未设置！应用无法启动。";
+                logger.error(errorMsg);
+                throw new IllegalStateException(errorMsg);
+            }
+
+            if (rsaPublicKey == null || rsaPublicKey.isEmpty()) {
+                String errorMsg = "JWT_RSA_PUBLIC_KEY 环境变量未设置！应用无法启动。";
+                logger.error(errorMsg);
+                throw new IllegalStateException(errorMsg);
+            }
+
+            // 检查是否使用了示例密钥
+            if (rsaPrivateKey.contains("your-rsa") || rsaPublicKey.contains("your-rsa")) {
+                logger.warn("警告：JWT_RSA_* 密钥似乎是示例值！生产环境请使用真实的 RSA 密钥对。");
+            }
+
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+            // 加载私钥（PKCS8 格式）
+            byte[] privateKeyBytes = Base64.getDecoder().decode(rsaPrivateKey);
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+            this.privateKey = keyFactory.generatePrivate(privateKeySpec);
+
+            // 加载公钥（X509 格式）
+            byte[] publicKeyBytes = Base64.getDecoder().decode(rsaPublicKey);
+            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
+            this.publicKey = keyFactory.generatePublic(publicKeySpec);
+
+            logger.info("RSA 密钥对加载成功（算法: RSA, 密钥长度: {} 位）",
+                publicKey instanceof java.security.interfaces.RSAPublicKey
+                    ? ((java.security.interfaces.RSAPublicKey) publicKey).getModulus().bitLength()
+                    : "未知");
+
+        } catch (Exception e) {
+            String errorMsg = "加载 RSA 密钥对失败！请检查环境变量配置。错误: " + e.getMessage();
+            logger.error(errorMsg, e);
+            throw new IllegalStateException(errorMsg, e);
         }
-
-        if (jwtSecret.length() < MIN_SECRET_LENGTH) {
-            String errorMsg = String.format(
-                "JWT_SECRET 密钥长度不足！当前长度: %d，要求至少: %d 字符。请使用强随机密钥。",
-                jwtSecret.length(), MIN_SECRET_LENGTH
-            );
-            logger.error(errorMsg);
-            throw new IllegalStateException(errorMsg);
-        }
-
-        // 检查是否使用了默认/示例密钥
-        if (jwtSecret.contains("change") || jwtSecret.contains("your-secret-key") ||
-            jwtSecret.contains("example") || jwtSecret.contains("test-only")) {
-            logger.warn("警告：JWT_SECRET 似乎是默认或示例密钥！生产环境请使用强随机密钥。");
-        }
-
-        logger.info("JWT 密钥验证通过（长度: {} 字符）", jwtSecret.length());
-    }
-
-    private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
      * 生成访问令牌
+     * 安全加固第三阶段：使用 RS256 签名
      */
     public String generateAccessToken(String userId) {
         Date now = new Date();
@@ -75,12 +99,13 @@ public class JwtTokenProvider {
                 .subject(userId)
                 .issuedAt(now)
                 .expiration(expiryDate)
-                .signWith(getSigningKey())
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
     /**
      * 生成刷新令牌
+     * 安全加固第三阶段：使用 RS256 签名
      */
     public String generateRefreshToken(String userId) {
         Date now = new Date();
@@ -90,7 +115,7 @@ public class JwtTokenProvider {
                 .subject(userId)
                 .issuedAt(now)
                 .expiration(expiryDate)
-                .signWith(getSigningKey())
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
@@ -99,7 +124,7 @@ public class JwtTokenProvider {
      */
     public String getUserIdFromToken(String token) {
         Claims claims = Jwts.parser()
-                .verifyWith(getSigningKey())
+                .verifyWith(publicKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -109,11 +134,12 @@ public class JwtTokenProvider {
 
     /**
      * 验证令牌
+     * 安全加固第三阶段：使用 RSA 公钥验证 RS256 签名
      */
     public boolean validateToken(String token) {
         try {
             Jwts.parser()
-                    .verifyWith(getSigningKey())
+                    .verifyWith(publicKey)
                     .build()
                     .parseSignedClaims(token);
             logger.debug("JWT token validated successfully");
@@ -138,7 +164,7 @@ public class JwtTokenProvider {
     public boolean isTokenExpired(String token) {
         try {
             Claims claims = Jwts.parser()
-                    .verifyWith(getSigningKey())
+                    .verifyWith(publicKey)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
@@ -157,10 +183,9 @@ public class JwtTokenProvider {
     }
 
     /**
-     * 获取签名密钥（供其他服务使用）
-     * 安全加固：公开此方法避免其他服务硬编码密钥
+     * 获取刷新令牌过期时间（秒）
      */
-    public SecretKey getSigningKeyPublic() {
-        return getSigningKey();
+    public long getRefreshTokenExpirationSeconds() {
+        return refreshTokenExpiration / 1000;
     }
 }

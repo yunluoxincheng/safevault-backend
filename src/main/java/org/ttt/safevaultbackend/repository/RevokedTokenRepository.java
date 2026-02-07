@@ -50,4 +50,12 @@ public interface RevokedTokenRepository extends ListCrudRepository<RevokedToken,
     @Modifying
     @Query("UPDATE RevokedToken r SET r.revokeReason = :reason WHERE r.userId = :userId")
     int markAllUserTokens(@Param("userId") String userId, @Param("reason") String reason);
+
+    /**
+     * 撤销特定设备的令牌
+     * 安全加固第三阶段：用于并发登录控制
+     */
+    @Modifying
+    @Query("UPDATE RevokedToken r SET r.revokeReason = :reason WHERE r.userId = :userId AND r.deviceId = :deviceId")
+    int markDeviceTokens(@Param("userId") String userId, @Param("deviceId") String deviceId, @Param("reason") String reason);
 }

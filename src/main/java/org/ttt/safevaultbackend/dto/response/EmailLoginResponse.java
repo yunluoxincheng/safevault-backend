@@ -11,6 +11,7 @@ import java.util.List;
 /**
  * 邮箱登录响应
  * 包含设备列表和邮箱信息
+ * 安全加固第三阶段：添加maxDevices字段
  */
 @Data
 @Builder
@@ -29,4 +30,5 @@ public class EmailLoginResponse {
     private List<DeviceInfo> devices;
     private Boolean isNewDevice;
     private String message; // 新设备提示信息
+    private Integer maxDevices; // 最大设备数限制（安全加固第三阶段）
 }

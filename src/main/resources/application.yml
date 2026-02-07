@@ -66,10 +66,13 @@ server:
     key-alias: safevault
 
 # JWT Configuration
+# 安全加固第三阶段：使用 RS256 非对称加密
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-change-this-in-production-use-at-least-256-bits}
-  access-token-expiration: 86400000  # 24 hours in milliseconds
-  refresh-token-expiration: 2592000000  # 30 days in milliseconds
+  rsa:
+    private-key: ${JWT_RSA_PRIVATE_KEY}
+    public-key: ${JWT_RSA_PUBLIC_KEY}
+  access-token-expiration: 900000  # 15 minutes in milliseconds
+  refresh-token-expiration: 604800000  # 7 days in milliseconds
 
 # API Documentation
 springdoc:
