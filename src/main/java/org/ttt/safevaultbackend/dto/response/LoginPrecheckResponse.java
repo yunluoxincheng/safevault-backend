@@ -31,4 +31,15 @@ public class LoginPrecheckResponse {
      * 用户ID（用于前端显示）
      */
     private String userId;
+
+    /**
+     * 用户派生密钥验证器（Base64 编码）
+     * 这是用户注册时使用 Argon2id 从主密码派生的密钥
+     * 客户端使用此密钥对 nonce 进行 HMAC-SHA256 签名
+     *
+     * 安全说明：虽然派生密钥可以通过主密码重新计算，
+     * 但直接返回存储的 passwordVerifier 可以避免客户端
+     * 需要存储和管理盐值，简化协议并确保一致性。
+     */
+    private String passwordVerifier;
 }

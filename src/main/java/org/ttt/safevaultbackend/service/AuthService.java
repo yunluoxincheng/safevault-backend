@@ -540,12 +540,20 @@ public class AuthService {
         // 计算过期时间
         long expiresAt = System.currentTimeMillis() / 1000 + 30; // 30 秒后过期
 
-        log.info("登录预检查成功: email={}, nonce={}", request.getEmail(), nonce);
+        // 检查派生密钥是否存在
+        if (user.getPasswordVerifier() == null || user.getPasswordVerifier().isEmpty()) {
+            throw new BusinessException("PASSWORD_VERIFIER_MISSING",
+                "用户派生密钥未配置，请先完成注册");
+        }
+
+        log.info("登录预检查成功: email={}, nonce={}, userId={}",
+                request.getEmail(), nonce, user.getUserId());
 
         return LoginPrecheckResponse.builder()
                 .nonce(nonce)
                 .expiresAt(expiresAt)
                 .userId(user.getUserId())
+                .passwordVerifier(user.getPasswordVerifier())
                 .build();
     }
 
