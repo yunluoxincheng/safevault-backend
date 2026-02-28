@@ -43,6 +43,12 @@ public class VaultResponse {
     private String dataAuthTag;
 
     /**
+     * Salt（Base64 编码）
+     * 用于 Argon2id 密钥派生
+     */
+    private String salt;
+
+    /**
      * 版本号
      */
     private Long version;

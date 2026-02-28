@@ -37,6 +37,14 @@ public class UserVault {
     @Column(name = "data_auth_tag", length = 32)
     private String dataAuthTag; // Base64 编码的 GCM 认证标签（128 bits）
 
+    /**
+     * Salt（Base64 编码）
+     * 用于 Argon2id 密钥派生，确保跨设备一致性
+     * 客户端上传随机生成的 salt，服务器原样存储和返回
+     */
+    @Column(name = "salt", nullable = false, length = 32)
+    private String salt; // Base64 编码的 salt（128 bits）
+
     // 版本控制（用于同步和冲突检测）
     @Column(name = "version", nullable = false)
     @Builder.Default

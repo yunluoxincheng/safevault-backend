@@ -36,6 +36,13 @@ public class VaultSyncRequest {
     private String dataAuthTag;
 
     /**
+     * Salt（Base64 编码）
+     * 用于 Argon2id 密钥派生，客户端生成的随机 salt
+     */
+    @NotBlank(message = "Salt 不能为空")
+    private String salt;
+
+    /**
      * 客户端版本号（用于冲突检测）
      */
     @NotNull(message = "版本号不能为空")

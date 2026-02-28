@@ -67,6 +67,7 @@ public class VaultService {
                 .encryptedData(request.getEncryptedData())
                 .dataIv(request.getDataIv())
                 .dataAuthTag(request.getDataAuthTag())
+                .salt(request.getSalt())
                 .version(1L)
                 .lastSyncedAt(LocalDateTime.now())
                 .build();
@@ -160,6 +161,7 @@ public class VaultService {
         vault.setEncryptedData(request.getEncryptedData());
         vault.setDataIv(request.getDataIv());
         vault.setDataAuthTag(request.getDataAuthTag());
+        vault.setSalt(request.getSalt());
         vault.setVersion(vault.getVersion() + 1);
         vault.setLastSyncedAt(LocalDateTime.now());
 
@@ -186,6 +188,7 @@ public class VaultService {
                 .encryptedData(request.getEncryptedData())
                 .dataIv(request.getDataIv())
                 .dataAuthTag(request.getDataAuthTag())
+                .salt(request.getSalt())
                 .version(1L)
                 .lastSyncedAt(LocalDateTime.now())
                 .build();
@@ -213,6 +216,7 @@ public class VaultService {
                 .encryptedData(vault.getEncryptedData())
                 .dataIv(vault.getDataIv())
                 .dataAuthTag(vault.getDataAuthTag())
+                .salt(vault.getSalt())
                 .version(vault.getVersion())
                 .lastSyncedAt(vault.getLastSyncedAt())
                 .createdAt(vault.getCreatedAt())

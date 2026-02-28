@@ -33,4 +33,11 @@ public class VaultInitRequest {
      */
     @NotBlank(message = "认证标签不能为空")
     private String dataAuthTag;
+
+    /**
+     * Salt（Base64 编码）
+     * 用于 Argon2id 密钥派生
+     */
+    @NotBlank(message = "Salt 不能为空")
+    private String salt;
 }
