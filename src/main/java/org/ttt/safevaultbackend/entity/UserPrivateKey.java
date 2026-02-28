@@ -33,6 +33,9 @@ public class UserPrivateKey {
     @Column(name = "salt", nullable = false, length = 255)
     private String salt;
 
+    @Column(name = "auth_tag", nullable = false, length = 32)
+    private String authTag;
+
     @Column(name = "version", length = 50)
     @Builder.Default
     private String version = "v1";

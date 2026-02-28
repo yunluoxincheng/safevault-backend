@@ -153,7 +153,7 @@ public class EmailService {
     private String buildVerificationEmailHtml(String email, String verificationUrl) {
         // 提取token并构建HTTPS链接
         String token = extractTokenFromUrl(verificationUrl);
-        String httpsUrl = "https://frp-hat.com:27784/api/verify/email?token=" + token;
+        String httpsUrl = "https://frp-ski.com:41751/api/verify/email?token=" + token;
 
         try {
             String template = loadTemplate("email/verification-email.html");

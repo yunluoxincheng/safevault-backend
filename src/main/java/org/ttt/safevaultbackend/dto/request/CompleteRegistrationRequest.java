@@ -38,6 +38,9 @@ public class CompleteRegistrationRequest {
     @NotBlank(message = "私钥IV不能为空")
     private String privateKeyIv;
 
+    @NotBlank(message = "私钥认证标签不能为空")
+    private String authTag;
+
     @NotBlank(message = "设备ID不能为空")
     private String deviceId;
 }

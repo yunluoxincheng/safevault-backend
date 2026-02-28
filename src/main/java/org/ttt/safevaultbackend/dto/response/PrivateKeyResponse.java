@@ -19,6 +19,7 @@ public class PrivateKeyResponse {
     private String encryptedPrivateKey;
     private String iv;
     private String salt;
+    private String authTag;
     private String version;
     private LocalDateTime updatedAt;
 }

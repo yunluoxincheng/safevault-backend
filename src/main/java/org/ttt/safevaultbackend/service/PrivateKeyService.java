@@ -54,6 +54,7 @@ public class PrivateKeyService {
             existingKey.setEncryptedPrivateKey(request.getEncryptedPrivateKey());
             existingKey.setIv(request.getIv());
             existingKey.setSalt(request.getSalt());
+            existingKey.setAuthTag(request.getAuthTag());
             existingKey.setVersion(request.getVersion());
             privateKeyRepository.save(existingKey);
             log.info("更新私钥: userId={}, version={}", userId, request.getVersion());
@@ -70,6 +71,7 @@ public class PrivateKeyService {
                     .encryptedPrivateKey(request.getEncryptedPrivateKey())
                     .iv(request.getIv())
                     .salt(request.getSalt())
+                    .authTag(request.getAuthTag())
                     .version(request.getVersion())
                     .build();
             privateKeyRepository.save(newKey);
@@ -98,6 +100,7 @@ public class PrivateKeyService {
                 .encryptedPrivateKey(key.getEncryptedPrivateKey())
                 .iv(key.getIv())
                 .salt(key.getSalt())
+                .authTag(key.getAuthTag())
                 .version(key.getVersion())
                 .updatedAt(key.getUpdatedAt())
                 .build();

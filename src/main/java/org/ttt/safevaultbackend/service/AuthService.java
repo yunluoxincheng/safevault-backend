@@ -1008,10 +1008,11 @@ public class AuthService {
                 .encryptedPrivateKey(request.getEncryptedPrivateKey())
                 .iv(request.getPrivateKeyIv())
                 .salt(request.getSalt())
+                .authTag(request.getAuthTag())
                 .version("v1")
                 .build();
         userPrivateKeyRepository.save(userPrivateKey);
-        log.info("保存私钥到 user_private_keys 表: userId={}", user.getUserId());
+        log.info("保存私钥到 user_private_keys 表: userId={}, authTag长度={}", user.getUserId(), request.getAuthTag() != null ? request.getAuthTag().length() : 0);
 
         // 生成访问令牌和刷新令牌
         String accessToken = tokenProvider.generateAccessToken(user.getUserId());

@@ -24,6 +24,9 @@ public class UploadPrivateKeyRequest {
     @NotBlank(message = "盐值不能为空")
     private String salt;
 
+    @NotBlank(message = "认证标签不能为空")
+    private String authTag;
+
     @NotBlank(message = "版本号不能为空")
     private String version;
 }

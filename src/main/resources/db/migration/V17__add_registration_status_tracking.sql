@@ -1,3 +1,8 @@
+-- 首先添加缺失的密码字段（这些字段在User实体中定义但之前没有迁移脚本）
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS password_verifier TEXT,
+ADD COLUMN IF NOT EXISTS password_salt VARCHAR(64);
+
 -- 添加注册状态追踪字段
 ALTER TABLE users
 ADD COLUMN IF NOT EXISTS registration_status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',

@@ -1,6 +1,8 @@
 --创建schema，safevault--
-    CREATE SCHEMA IF NOT EXISTS public;
- --
+CREATE SCHEMA IF NOT EXISTS public;
+
+-- 设置搜索路径为 public
+SET search_path TO public;
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
