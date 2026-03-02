@@ -77,13 +77,28 @@ public class User {
 
     // 分享用密钥对
     @Column(name = "public_key", nullable = false, columnDefinition = "TEXT")
-    private String publicKey; // RSA 公钥
+    private String publicKey; // RSA 公钥（协议版本 2.0）
 
     @Column(name = "private_key_encrypted", columnDefinition = "TEXT")
     private String privateKeyEncrypted; // 加密的 RSA 私钥
 
     @Column(name = "private_key_iv", length = 24)
     private String privateKeyIv; // 私钥加密的 IV
+
+    // X25519/Ed25519 椭圆曲线密钥对（协议版本 3.0）
+    @Column(name = "x25519_public_key", columnDefinition = "TEXT")
+    private String x25519PublicKey; // X25519 公钥（用于 ECDH 密钥交换）
+
+    @Column(name = "ed25519_public_key", columnDefinition = "TEXT")
+    private String ed25519PublicKey; // Ed25519 公钥（用于数字签名）
+
+    // 公钥版本标识
+    @Column(name = "key_version", length = 10)
+    private String keyVersion; // v1=RSA, v2=X25519/Ed25519
+
+    // 公钥更新时间
+    @Column(name = "public_keys_updated_at")
+    private LocalDateTime publicKeysUpdatedAt;
 
     // 密码验证相关字段（用于邮箱账户）
     @Column(name = "password_verifier", columnDefinition = "TEXT")

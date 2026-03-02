@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.ttt.safevaultbackend.dto.PasswordData;
+import org.ttt.safevaultbackend.dto.request.UploadEccPublicKeyRequest;
 import org.ttt.safevaultbackend.dto.response.*;
 import org.ttt.safevaultbackend.service.UserService;
 
@@ -37,6 +38,21 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 获取用户密钥信息
+     *
+     * 用于版本协商，返回用户的所有公钥信息
+     *
+     * @param userId 用户 ID
+     * @return 用户密钥信息
+     */
+    @GetMapping("/{userId}/keys")
+    @Operation(summary = "获取用户密钥信息", description = "获取用户的所有公钥信息（RSA、X25519、Ed25519），用于版本协商")
+    public ResponseEntity<UserKeyInfoResponse> getUserKeys(@PathVariable String userId) {
+        UserKeyInfoResponse response = userService.getUserKeys(userId);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/search")
     @Operation(summary = "搜索用户", description = "通过用户ID或用户名模糊搜索用户")
     public ResponseEntity<List<UserSearchResponse>> searchUsers(@RequestParam String query) {
@@ -63,6 +79,14 @@ public class UserController {
     @Operation(summary = "获取用户统计", description = "获取当前用户的分享统计信息")
     public ResponseEntity<PasswordData> getUserStatistics() {
         PasswordData response = userService.getUserStatistics();
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/me/ecc-public-keys")
+    @Operation(summary = "上传 ECC 公钥", description = "上传用户的 X25519/Ed25519 椭圆曲线公钥")
+    public ResponseEntity<UploadEccPublicKeyResponse> uploadEccPublicKey(
+            @Valid @RequestBody UploadEccPublicKeyRequest request) {
+        UploadEccPublicKeyResponse response = userService.uploadEccPublicKey(request);
         return ResponseEntity.ok(response);
     }
 }

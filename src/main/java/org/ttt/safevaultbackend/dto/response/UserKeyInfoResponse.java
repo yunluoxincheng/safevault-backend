@@ -6,24 +6,27 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 用户搜索响应
- * 包含用户的公钥信息（RSA 和 X25519/Ed25519）
+ * 用户密钥信息响应
+ *
+ * 用于版本协商，返回用户的所有公钥信息
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserSearchResponse {
+public class UserKeyInfoResponse {
 
     private String userId;
-    private String username;
-    private String displayName;
 
     // RSA 公钥（协议版本 2.0）
-    private String publicKey;
+    private String rsaPublicKey;
 
-    // X25519/Ed25519 公钥（协议版本 3.0）
+    // X25519 公钥（协议版本 3.0）
     private String x25519PublicKey;
+
+    // Ed25519 公钥（协议版本 3.0）
     private String ed25519PublicKey;
+
+    // 当前活跃的密钥版本（"v1" 或 "v2"）
     private String keyVersion;
 }

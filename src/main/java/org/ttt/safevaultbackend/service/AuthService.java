@@ -69,6 +69,9 @@ public class AuthService {
 
     /**
      * 用户注册
+     *
+     * 支持协议版本 2.0 (RSA) 和 3.0 (X25519/Ed25519)
+     * 新用户默认生成所有类型的密钥
      */
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -83,15 +86,35 @@ public class AuthService {
         }
 
         // 创建新用户
-        User user = User.builder()
+        User.UserBuilder userBuilder = User.builder()
                 .userId(UUID.randomUUID().toString())
                 .deviceId(request.getDeviceId())
                 .username(request.getUsername())
                 .displayName(request.getDisplayName())
-                .publicKey(request.getPublicKey())
-                .build();
+                .publicKey(request.getPublicKey());
 
+        // 添加 X25519/Ed25519 公钥（如果提供）
+        if (request.getX25519PublicKey() != null && !request.getX25519PublicKey().isBlank()) {
+            userBuilder.x25519PublicKey(request.getX25519PublicKey());
+        }
+        if (request.getEd25519PublicKey() != null && !request.getEd25519PublicKey().isBlank()) {
+            userBuilder.ed25519PublicKey(request.getEd25519PublicKey());
+        }
+
+        // 设置密钥版本
+        if (request.getKeyVersion() != null && !request.getKeyVersion().isBlank()) {
+            userBuilder.keyVersion(request.getKeyVersion());
+        } else {
+            // 默认为 v1 (仅 RSA)
+            userBuilder.keyVersion("v1");
+        }
+
+        User user = userBuilder.build();
         user = userRepository.save(user);
+
+        log.info("新用户注册: userId={}, username={}, keyVersion={}, hasX25519={}, hasEd25519={}",
+                user.getUserId(), user.getUsername(), user.getKeyVersion(),
+                user.getX25519PublicKey() != null, user.getEd25519PublicKey() != null);
 
         // 生成 Token
         String accessToken = tokenProvider.generateAccessToken(user.getUserId());

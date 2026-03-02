@@ -10,7 +10,7 @@
     </parent>
     <groupId>org.ruikun</groupId>
     <artifactId>safevault-backend</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>3.6.0</version>
     <name>safevault-backend</name>
     <description>safevault-backend</description>
     <url/>
@@ -206,7 +206,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>1.18.30</version>
+                            <version>1.18.36</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
