@@ -10,7 +10,7 @@
     </parent>
     <groupId>org.ruikun</groupId>
     <artifactId>safevault-backend</artifactId>
-    <version>3.6.0</version>
+    <version>3.7.0</version>
     <name>safevault-backend</name>
     <description>safevault-backend</description>
     <url/>
