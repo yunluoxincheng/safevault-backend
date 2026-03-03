@@ -1,18 +1,47 @@
 # SafeVault 后端服务
 
+<div align="center">
+
+![SafeVault Backend](https://img.shields.io/badge/SafeVault-v3.6.0-brightgreen)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-green)
+![Java](https://img.shields.io/badge/Java-17-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+**为 Android 密码管理器应用提供云端支持的后端服务**
+
+</div>
+
+## 目录
+
+- [项目概述](#项目概述)
+- [技术栈](#技术栈)
+- [核心功能模块](#核心功能模块)
+- [快速开始](#快速开始)
+- [项目结构](#项目结构)
+- [API 接口文档](#api-接口文档)
+- [密码算法 v3.0](#密码算法-v30)
+- [数据库设计](#数据库设计)
+- [安全设计](#安全设计)
+- [版本历史](#版本历史)
+
+---
+
 ## 项目概述
 
 SafeVault 后端服务为 Android 密码管理器应用提供云端支持，实现用户管理、应用内密码分享、实时通信等核心功能。
 
 ### 技术栈
 
-- **框架**: Spring Boot 3.5.x
+- **框架**: Spring Boot 3.5.9
 - **Java 版本**: JDK 17+
-- **数据库**: PostgreSQL
+- **数据库**: PostgreSQL 15+ / H2（开发环境）
 - **ORM**: Spring Data JPA + Flyway
 - **安全**: Spring Security + JWT
-- **加密**: Bouncy Castle (AES-256-GCM, EC)
+- **加密**: Bouncy Castle (AES-256-GCM, X25519, Ed25519)
+- **密码哈希**: Argon2id
 - **实时通信**: WebSocket (STOMP)
+- **缓存**: Redis
+- **限流**: Bucket4j
 - **API 文档**: SpringDoc OpenAPI
 - **构建工具**: Maven
 - **容器化**: Docker + Docker Compose
@@ -24,7 +53,7 @@ safevault-backend/
 ├── 用户管理模块 (User Management)
 │   ├── 用户注册/登录
 │   ├── JWT 认证
-│   ├── 密钥对管理
+│   ├── 密钥对管理 (RSA + X25519 + Ed25519)
 │   ├── 用户搜索
 │   └── 用户配置文件管理
 │
@@ -55,23 +84,26 @@ safevault-backend/
     └── 分享数据加解密
 ```
 
+---
+
 ## 快速开始
 
 ### 环境要求
+
 - JDK 17+
 - Maven 3.8+
 - Docker & Docker Compose
-- PostgreSQL 15+
+- PostgreSQL 15+（生产环境）
 
 ### 本地运行
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-org/safevault-backend.git
-cd safevault-backend
+git clone https://github.com/yunluoxincheng/SafeVault.git
+cd SafeVault/safevault-backend
 
 # 启动数据库
-docker-compose up -d postgres
+docker-compose up -d postgres redis
 
 # 运行应用
 ./mvnw spring-boot:run
@@ -93,6 +125,8 @@ docker-compose logs -f
 docker-compose down
 ```
 
+---
+
 ## 项目结构
 
 ```
@@ -108,7 +142,8 @@ safevault-backend/
 │   │   │   ├── config/                            # 配置类
 │   │   │   │   ├── SecurityConfig.java            # 安全配置
 │   │   │   │   ├── WebSocketConfig.java          # WebSocket 配置
-│   │   │   │   └── OpenApiConfig.java             # API 文档配置
+│   │   │   │   ├── OpenApiConfig.java             # API 文档配置
+│   │   │   │   └── RedisConfig.java               # Redis 配置
 │   │   │   │
 │   │   │   ├── controller/                        # REST API 控制器
 │   │   │   │   ├── AuthController.java            # 认证接口
@@ -131,10 +166,10 @@ safevault-backend/
 │   │   │   │   └── OnlineUserRepository.java
 │   │   │   │
 │   │   │   ├── entity/                            # 数据库实体
-│   │   │   │   ├── User.java
-│   │   │   │   ├── PasswordShare.java
-│   │   │   │   ├── ShareAuditLog.java
-│   │   │   │   ├── OnlineUser.java
+│   │   │   │   ├── User.java                      # 用户实体
+│   │   │   │   ├── PasswordShare.java             # 分享记录
+│   │   │   │   ├── ShareAuditLog.java             # 审计日志
+│   │   │   │   ├── OnlineUser.java                # 在线用户
 │   │   │   │   ├── ShareStatus.java               # 分享状态枚举
 │   │   │   │   └── ShareType.java                 # 分享类型枚举
 │   │   │   │
@@ -143,27 +178,23 @@ safevault-backend/
 │   │   │   │   │   ├── RegisterRequest.java
 │   │   │   │   │   ├── LoginRequest.java
 │   │   │   │   │   ├── CreateShareRequest.java
-│   │   │   │   │   └── RegisterLocationRequest.java
+│   │   │   │   │   ├── RegisterLocationRequest.java
+│   │   │   │   │   └── UploadEccPublicKeyRequest.java  # ECC公钥上传
 │   │   │   │   ├── response/                      # 响应 DTO
 │   │   │   │   │   ├── AuthResponse.java
 │   │   │   │   │   ├── UserProfileResponse.java
 │   │   │   │   │   ├── ShareResponse.java
-│   │   │   │   │   └── NearbyUserResponse.java
+│   │   │   │   │   ├── NearbyUserResponse.java
+│   │   │   │   │   ├── UserKeyInfoResponse.java    # 用户密钥信息
+│   │   │   │   │   └── UploadEccPublicKeyResponse.java
 │   │   │   │   ├── SharePermission.java
 │   │   │   │   ├── PasswordData.java
 │   │   │   │   ├── ErrorResponse.java
-│   │   │   │   ├── ShareNotificationMessage.java
-│   │   │   │   └── SharePackage.java
+│   │   │   │   └── ShareNotificationMessage.java
 │   │   │   │
 │   │   │   ├── security/                          # 安全相关
 │   │   │   │   ├── JwtTokenProvider.java          # JWT 工具
 │   │   │   │   └── JwtAuthenticationFilter.java
-│   │   │   │
-│   │   │   ├── exception/                         # 异常处理
-│   │   │   │   ├── GlobalExceptionHandler.java
-│   │   │   │   ├── ResourceNotFoundException.java
-│   │   │   │   ├── UnauthorizedException.java
-│   │   │   │   └── BusinessException.java
 │   │   │   │
 │   │   │   ├── websocket/                         # WebSocket 相关
 │   │   │   │   ├── WebSocketAuthInterceptor.java
@@ -172,7 +203,8 @@ safevault-backend/
 │   │   │   │
 │   │   │   ├── scheduler/                         # 定时任务
 │   │   │   │   ├── ShareExpirationScheduler.java
-│   │   │   │   └── OnlineUserCleanupScheduler.java
+│   │   │   │   ├── OnlineUserCleanupScheduler.java
+│   │   │   │   └── RegistrationCleanupScheduler.java
 │   │   │   │
 │   │   │   └── util/                              # 工具类
 │   │   │       └── KeyGenerator.java
@@ -185,8 +217,12 @@ safevault-backend/
 │   │
 │   └── test/
 │       └── java/org/ttt/safevaultbackend/
-│           └── SafevaultBackendApplicationTests.java
+│           ├── SafevaultBackendApplicationTests.java
+│           └── integration/                       # 集成测试
+│               └── CryptoKeyManagementIntegrationTest.java
 ```
+
+---
 
 ## API 接口文档
 
@@ -209,7 +245,10 @@ Content-Type: application/json
   "deviceId": "unique-device-id",
   "username": "zhangsan",
   "displayName": "张三",
-  "publicKey": "BASE64_ENCODED_PUBLIC_KEY"
+  "email": "zhangsan@example.com",
+  "publicKey": "BASE64_ENCODED_PUBLIC_KEY",
+  "x25519PublicKey": "X25519_PUBLIC_KEY",  // v3.0 新增
+  "ed25519PublicKey": "ED25519_PUBLIC_KEY" // v3.0 新增
 }
 
 Response 201:
@@ -251,7 +290,44 @@ GET /v1/users/me
 Authorization: Bearer {access_token}
 ```
 
-#### 2.2 搜索用户
+#### 2.2 上传 ECC 公钥（v3.0 新增）
+
+```http
+PUT /v1/users/me/ecc-public-keys
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "x25519PublicKey": "BASE64_X25519_PUBLIC_KEY",
+  "ed25519PublicKey": "BASE64_ED25519_PUBLIC_KEY"
+}
+
+Response 200:
+{
+  "message": "ECC public keys updated successfully",
+  "x25519PublicKey": "BASE64_X25519_PUBLIC_KEY",
+  "ed25519PublicKey": "BASE64_ED25519_PUBLIC_KEY",
+  "updatedAt": "2026-03-03T10:30:00"
+}
+```
+
+#### 2.3 获取用户密钥信息（v3.0 新增）
+
+```http
+GET /v1/users/{userId}/keys
+Authorization: Bearer {access_token}
+
+Response 200:
+{
+  "userId": "usr_abc123xyz",
+  "rsaPublicKey": "BASE64_RSA_PUBLIC_KEY",
+  "x25519PublicKey": "BASE64_X25519_PUBLIC_KEY",
+  "ed25519PublicKey": "BASE64_ED25519_PUBLIC_KEY",
+  "keyVersion": "v2"
+}
+```
+
+#### 2.4 搜索用户
 
 ```http
 GET /v1/users/search?query=zhang
@@ -263,12 +339,14 @@ Response 200:
     "userId": "usr_def456uvw",
     "username": "zhangsan",
     "displayName": "张三",
-    "publicKey": "BASE64_ENCODED_PUBLIC_KEY"
+    "publicKey": "BASE64_ENCODED_PUBLIC_KEY",
+    "x25519PublicKey": "BASE64_X25519_PUBLIC_KEY",  // v3.0 新增
+    "ed25519PublicKey": "BASE64_ED25519_PUBLIC_KEY" // v3.0 新增
   }
 ]
 ```
 
-#### 2.3 生成二维码（用于扫码分享）
+#### 2.5 生成二维码（用于扫码分享）
 
 ```http
 GET /v1/users/me/qrcode
@@ -305,7 +383,8 @@ Content-Type: application/json
     "canSave": true,
     "isRevocable": true
   },
-  "shareType": "USER_TO_USER"
+  "shareType": "USER_TO_USER",
+  "protocolVersion": "v3"  // v2 或 v3
 }
 
 Response 200:
@@ -320,6 +399,10 @@ Response 200:
 - `DIRECT` - 直接分享（链接/二维码，无需指定接收方）
 - `USER_TO_USER` - 用户对用户分享（通过用户ID/用户名）
 - `NEARBY` - 附近设备分享
+
+**协议版本（protocolVersion）**：
+- `v2` - 使用 RSA-2048 加密
+- `v3` - 使用 X25519/Ed25519 加密（推荐）
 
 #### 3.2 接收分享
 
@@ -346,6 +429,7 @@ Response 200:
   },
   "status": "PENDING",
   "shareType": "USER_TO_USER",
+  "protocolVersion": "v3",
   "createdAt": 1704067200000,
   "expiresAt": 1704240000000
 }
@@ -458,48 +542,76 @@ ws://localhost:8080/api/ws
 }
 ```
 
-## 三种分享方式
+---
 
-### 方式 1：通过用户ID/用户名直接分享
+## 密码算法 v3.0
 
-1. 分享方搜索用户（输入ID或用户名）
-2. 后端返回匹配的用户列表
-3. 分享方选择接收方和要分享的密码
-4. 设置权限和有效期
-5. 后端创建分享记录
-6. 后端通过 WebSocket 推送通知给接收方
-7. 接收方 App 显示分享通知
+### 算法升级
 
-### 方式 2：扫码分享（类似 AirDrop）
+SafeVault 后端已支持 v3.0 密码算法，提供更强的安全性和更好的性能：
 
-1. 接收方打开 App，显示"接收分享"二维码（包含用户ID和临时Token）
-2. 分享方点击"扫码分享"，扫描接收方二维码
-3. 分享方选择要分享的密码
-4. 设置权限和有效期
-5. 后端创建分享记录
-6. 后端通过 WebSocket 推送通知给接收方
-7. 接收方 App 立即显示分享内容
+| 算法 | 版本 | 用途 | 特性 |
+|------|------|------|------|
+| **X25519** | v3.0 | ECDH 密钥交换 | 32字节公钥，前向保密 |
+| **Ed25519** | v3.0 | EdDSA 数字签名 | 64字节签名，快速验证 |
+| **RSA-2048** | v2.0 | 兼容性支持 | OAEP填充，向后兼容 |
 
-### 方式 3：附近设备发现（类似蓝牙分享）
+### 密钥管理
 
-1. 双方打开 App 的"附近分享"功能
-2. App 通过 WebSocket 注册位置信息
-3. 后端返回附近的 SafeVault 用户列表
-4. 分享方选择附近用户
-5. 分享方选择密码并分享
-6. 后端通过 WebSocket 推送给接收方
+**User 实体支持的密钥类型**：
+
+```java
+// RSA 公钥（协议版本 2.0）
+@Column(name = "public_key")
+private String publicKey;
+
+// X25519 公钥（协议版本 3.0）
+@Column(name = "x25519_public_key")
+private String x25519PublicKey;
+
+// Ed25519 公钥（协议版本 3.0）
+@Column(name = "ed25519_public_key")
+private String ed25519PublicKey;
+
+// 公钥版本标识
+@Column(name = "key_version")
+private String keyVersion; // v1=RSA, v2=X25519/Ed25519
+```
+
+### 版本协商
+
+客户端可以通过 `/v1/users/{userId}/keys` 接口获取用户的所有公钥信息，根据对方支持的密钥版本选择合适的加密协议：
+
+1. 如果双方都支持 v3.0，优先使用 X25519/Ed25519
+2. 如果任一方不支持，回退到 RSA-2048
+3. 确保向后兼容性
+
+### 安全优势
+
+相比 RSA-2048：
+
+- **性能**: 密钥生成快约 100 倍
+- **密钥尺寸**: 公钥/私钥仅 32 字节（RSA 约 300 字节）
+- **签名尺寸**: 64 字节（RSA 约 256 字节）
+- **前向保密**: 支持前向保密协议，提升长期安全性
+
+---
 
 ## 数据库设计
 
 ### 主要表结构
 
 - **users** - 用户表
-  - 用户ID、设备ID、用户名、显示名称、公钥
+  - 用户ID、设备ID、用户名、显示名称、邮箱
+  - RSA 公钥、X25519 公钥、Ed25519 公钥
+  - 密钥版本标识、公钥更新时间
   - 创建的分享、接收的分享
+  - 密码验证器（Argon2id）
 
 - **password_shares** - 密码分享表
   - 分享ID、密码ID、分享方、接收方、加密数据
   - 创建时间、过期时间、权限、状态、分享类型
+  - 协议版本（v2/v3）
 
 - **share_audit_logs** - 分享审计日志表
   - 分享操作记录（创建、接收、撤销等）
@@ -508,41 +620,102 @@ ws://localhost:8080/api/ws
   - 用户ID、用户名、显示名称、位置信息
   - 最后活跃时间、会话ID
 
+---
+
 ## 安全设计
 
 ### 1. 认证与授权
+
 - JWT 认证机制
 - Token 有效期控制（24小时）
 - Refresh Token 轮换
 - API 权限控制
 - WebSocket 连接认证
+- 限流保护（Bucket4j + Redis）
 
 ### 2. 数据加密
-- 用户密钥对：EC P-521
-- 会话密钥：AES-256-GCM
-- 传输加密：HTTPS + WSS (WebSocket Secure)
-- 签名验证：HMAC-SHA256
+
+- **密钥派生**: Argon2id（自适应性能调优）
+- **用户密钥对**:
+  - RSA-2048（兼容性）
+  - X25519（ECDH）
+  - Ed25519（数字签名）
+- **会话密钥**: AES-256-GCM
+- **传输加密**: HTTPS + WSS (WebSocket Secure)
+- **签名验证**: Ed25519 / HMAC-SHA256
 
 ### 3. 数据保护
+
 - 密码数据不在服务端明文存储
 - 会话密钥使用后立即销毁
 - 敏感数据不记录日志
 - 数据库连接加密
+- 多设备限制（最多5台设备）
 
-## 错误码定义
+---
 
-| 错误码 | 说明 | HTTP 状态码 |
-|--------|------|-------------|
-| `AUTH_INVALID_TOKEN` | 无效的访问令牌 | 401 |
-| `AUTH_TOKEN_EXPIRED` | 令牌已过期 | 401 |
-| `USER_NOT_FOUND` | 用户不存在 | 404 |
-| `USER_ALREADY_EXISTS` | 用户已存在 | 409 |
-| `SHARE_NOT_FOUND` | 分享不存在 | 404 |
-| `SHARE_EXPIRED` | 分享已过期 | 403 |
-| `SHARE_REVOKED` | 分享已撤销 | 410 |
-| `SAVE_NOT_ALLOWED` | 不允许保存 | 403 |
-| `INVALID_ENCRYPTED_DATA` | 加密数据无效 | 400 |
-| `ACCESS_DENIED` | 无权访问 | 403 |
+## 版本历史
+
+### v3.6.0 (最新)
+
+**密码算法升级**
+
+- 新增 X25519/Ed25519 密钥对支持
+- 新增 ECC 公钥上传 API
+- 新增用户密钥信息查询 API
+- 支持密码分享协议版本协商（v2/v3）
+- 数据库添加 X25519/Ed25519 公钥字段
+- User 实体扩展支持多版本密钥
+
+**安全增强**
+
+- 支持 v2.0（RSA）与 v3.0（X25519/Ed25519）互操作
+- 自动版本协商机制
+- 向后兼容保证
+
+### v3.5.0
+
+- 修复相关同步问题
+- 优化连接管理
+
+### v3.4.2
+
+- 文档和证书更新
+
+### v3.4.0
+
+- 架构兼容性修复
+- 完善错误处理机制
+
+### v3.3.3
+
+- 增加 Challenge-Response 登录机制
+- 提升登录安全性
+
+### v3.3.2
+
+- 安全加固第三阶段完成
+- 多设备支持（最多5台设备）
+
+### v3.2.2
+
+- 安全加固第二阶段完成
+- Argon2id 密码哈希
+
+### v3.1.2
+
+- 密钥架构升级
+- 三层安全架构兼容
+- 注册流程优化
+
+### v3.0.2
+
+- 安全加固第一阶段完成
+- 完整的后端API集成
+- WebSocket 实时通知
+- 附近发现功能
+
+---
 
 ## 定时任务
 
@@ -553,6 +726,12 @@ ws://localhost:8080/api/ws
 ### 在线用户清理
 - **频率**：每分钟一次
 - **功能**：清理 2 分钟未活跃的在线用户记录
+
+### 注册清理
+- **频率**：每小时一次
+- **功能**：清理超过24小时未完成的注册记录
+
+---
 
 ## 开发指南
 
@@ -566,7 +745,10 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
     "deviceId": "test-device-001",
     "username": "testuser",
     "displayName": "测试用户",
-    "publicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA..."
+    "email": "test@example.com",
+    "publicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...",
+    "x25519PublicKey": "X25519_PUBLIC_KEY_BASE64",
+    "ed25519PublicKey": "ED25519_PUBLIC_KEY_BASE64"
   }'
 
 # 登录
@@ -582,7 +764,16 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 curl -X GET "http://localhost:8080/api/v1/users/search?query=test" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 
-# 创建分享
+# 上传 ECC 公钥
+curl -X PUT http://localhost:8080/api/v1/users/me/ecc-public-keys \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "x25519PublicKey": "X25519_PUBLIC_KEY_BASE64",
+    "ed25519PublicKey": "ED25519_PUBLIC_KEY_BASE64"
+  }'
+
+# 创建分享（v3.0）
 curl -X POST http://localhost:8080/api/v1/shares \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -598,10 +789,21 @@ curl -X POST http://localhost:8080/api/v1/shares \
       "canSave": true,
       "isRevocable": true
     },
-    "shareType": "USER_TO_USER"
+    "shareType": "USER_TO_USER",
+    "protocolVersion": "v3"
   }'
 ```
+
+---
 
 ## 许可证
 
 Copyright © 2024 SafeVault. All rights reserved.
+
+---
+
+<div align="center">
+
+**Made with ❤️ for Security**
+
+</div>
