@@ -2,10 +2,7 @@
 .git
 .gitignore
 
-# Maven
-.mvn/
-mvnw
-mvnw.cmd
+# Maven build output
 target/
 
 # IDE
@@ -16,10 +13,9 @@ target/
 # Logs
 *.log
 
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
+# Deployment artifacts
+scripts/deploy/
+docs/deployment/
 
 # Documentation
 README.md

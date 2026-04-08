@@ -1,24 +1,21 @@
-FROM openjdk:17-jdk-slim
+FROM maven:3.9.9-eclipse-temurin-17 AS builder
+WORKDIR /workspace
 
+COPY pom.xml .
+COPY src src
+RUN mvn -B -DskipTests clean package
+
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# 复制 Maven wrapper 和 pom.xml
-COPY mvnw .
-COPY .mvn .mvn
-COPY pom.xml .
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-# 构建项目
-RUN chmod +x mvnw && ./mvnw clean package -DskipTests
-
-# 复制 JAR 文件
-COPY target/safevault-backend-*.jar app.jar
-
-# 暴露端口
-EXPOSE 8080
-
-# 设置时区
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 启动应用
-ENTRYPOINT ["java", "-jar", "app.jar"]
+COPY --from=builder /workspace/target/safevault-backend-*.jar /app/app.jar
+
+EXPOSE 8080
+ENTRYPOINT ["java","-jar","/app/app.jar"]

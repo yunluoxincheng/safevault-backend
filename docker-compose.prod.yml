@@ -34,6 +34,11 @@ services:
     image: ${BACKEND_IMAGE}
     container_name: safevault-backend
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     environment:
@@ -49,11 +54,6 @@ services:
       JWT_RSA_PUBLIC_KEY: ${JWT_RSA_PUBLIC_KEY}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       KEYSTORE_PASSWORD: ${KEYSTORE_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/swagger-ui.html"]
       interval: 30s

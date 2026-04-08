@@ -18,6 +18,8 @@
 - [核心功能模块](#核心功能模块)
 - [快速开始](#快速开始)
 - [项目结构](#项目结构)
+- [模块化重构](#模块化重构)
+- [服务器部署](#服务器部署)
 - [API 接口文档](#api-接口文档)
 - [密码算法 v3.0](#密码算法-v30)
 - [数据库设计](#数据库设计)
@@ -124,6 +126,28 @@ docker-compose logs -f
 # 停止服务
 docker-compose down
 ```
+
+---
+
+## 模块化重构
+
+后端已按“模块化单体”方式整理，功能行为保持不变。
+
+- 模块边界说明：`docs/modularization-plan.md`
+- 模块边界包：`src/main/java/org/ttt/safevaultbackend/modules/*`
+
+---
+
+## 服务器部署
+
+生产部署文档：`docs/deployment/server-deployment.md`
+
+核心文件：
+
+- 统一编排：`docker-compose.yml`
+- 镜像构建脚本：`scripts/deploy/build-image.sh`
+- 服务器部署脚本：`scripts/deploy/deploy-server.sh`
+- 生产环境变量模板：`scripts/deploy/.env.prod.example`
 
 ---
 
