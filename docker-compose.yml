@@ -5,6 +5,8 @@ services:
     image: postgres:15-alpine
     container_name: safevault-postgres
     restart: unless-stopped
+    env_file:
+      - ./.env
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -21,6 +23,8 @@ services:
     image: redis:7-alpine
     container_name: safevault-redis
     restart: unless-stopped
+    env_file:
+      - ./.env
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - redis_data:/data
@@ -34,6 +38,8 @@ services:
     image: ${BACKEND_IMAGE}
     container_name: safevault-backend
     restart: unless-stopped
+    env_file:
+      - ./.env
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     environment:
