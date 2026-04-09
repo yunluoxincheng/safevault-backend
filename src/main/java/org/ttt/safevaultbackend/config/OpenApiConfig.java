@@ -33,7 +33,7 @@ public class OpenApiConfig {
                                 .url("https://opensource.org/licenses/MIT")))
                 .servers(List.of(
                         new Server().url("http://localhost:8080/api").description("开发环境"),
-                        new Server().url("https://api.safevault.com/api").description("生产环境")
+                        new Server().url("https://server.safevaultapp.top/api").description("生产环境")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
                 .components(new io.swagger.v3.oas.models.Components()

@@ -60,6 +60,7 @@ public class SecurityConfig {
      */
     private static final List<String> ALLOWED_ORIGINS = Arrays.asList(
             "https://safevaultapp.top",  // 生产环境域名
+            "https://server.safevaultapp.top",  // 后端生产域名
             "safevault://"               // Deep link scheme（用于应用内跳转）
     );
 

@@ -153,7 +153,7 @@ public class EmailService {
     private String buildVerificationEmailHtml(String email, String verificationUrl) {
         // 提取token并构建HTTPS链接
         String token = extractTokenFromUrl(verificationUrl);
-        String httpsUrl = "https://frp-ski.com:41751/api/verify/email?token=" + token;
+        String httpsUrl = buildEmailVerificationHttpUrl(token);
 
         try {
             String template = loadTemplate("email/verification-email.html");
@@ -185,6 +185,16 @@ public class EmailService {
             return token;
         }
         return "";
+    }
+
+    /**
+     * 使用可配置 baseUrl 构建邮件中的验证链接
+     */
+    private String buildEmailVerificationHttpUrl(String token) {
+        String normalizedBaseUrl = (baseUrl == null || baseUrl.isBlank())
+                ? "http://localhost:8080/api"
+                : baseUrl.replaceAll("/+$", "");
+        return normalizedBaseUrl + "/verify/email?token=" + token;
     }
 
     /**

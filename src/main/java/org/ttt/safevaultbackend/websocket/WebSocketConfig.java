@@ -19,6 +19,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     private static final String[] ALLOWED_ORIGINS = {
             "https://safevaultapp.top",  // 生产环境域名
+            "https://server.safevaultapp.top",  // 后端生产域名
             "safevault://"               // Deep link scheme（用于应用内跳转）
     };
 

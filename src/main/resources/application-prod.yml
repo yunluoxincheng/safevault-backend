@@ -19,6 +19,16 @@ spring:
         order_inserts: true
         order_updates: true
 
+server:
+  ssl:
+    # Production SSL is terminated at Nginx reverse proxy.
+    enabled: false
+  # Trust X-Forwarded-* headers from reverse proxy.
+  forward-headers-strategy: framework
+
+app:
+  base-url: ${APP_BASE_URL:https://server.safevaultapp.top/api}
+
 # JWT Secret must be set in production
 jwt:
   secret: ${JWT_SECRET}
