@@ -3,7 +3,6 @@ package org.ttt.safevaultbackend.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -46,29 +45,18 @@ public class EmailService {
             log.info("Verification URL: {}", verificationUrl);
 
             MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-            // true 表示多部分消息
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
             helper.setSubject("验证您的 SafeVault 邮箱");
 
-            // 添加内嵌图片作为附件
-            ClassPathResource imageResource = new ClassPathResource("static/images/safevault_icon.png");
-            if (imageResource.exists()) {
-                helper.addInline("safe-vaultIcon", imageResource);
-                log.info("Successfully attached SafeVault icon as inline resource");
-            } else {
-                log.warn("SafeVault icon not found in classpath: static/images/safevault_icon.png");
-            }
-
-            // 构建 HTML 邮件内容（使用 cid: 协议引用图片）
             String htmlContent = buildVerificationEmailHtml(toEmail, verificationUrl);
-            helper.setText(htmlContent, true);
+            String plainText = buildVerificationEmailText(toEmail, verificationUrl);
+            helper.setText(plainText, htmlContent);
 
             log.info("Sending email with MIME message...");
 
-            // 发送邮件
             javaMailSender.send(mimeMessage);
 
             log.info("Verification email sent successfully to: {}", toEmail);
@@ -124,17 +112,9 @@ public class EmailService {
             helper.setTo(toEmail);
             helper.setSubject("重置您的 SafeVault 密码");
 
-            // 添加内嵌图片作为附件
-            ClassPathResource imageResource = new ClassPathResource("static/images/safevault_icon.png");
-            if (imageResource.exists()) {
-                helper.addInline("safe-vaultIcon", imageResource);
-                log.info("Successfully attached SafeVault icon for password reset email");
-            } else {
-                log.warn("SafeVault icon not found in classpath for password reset email");
-            }
-
             String htmlContent = buildPasswordResetEmailHtml(toEmail, resetUrl);
-            helper.setText(htmlContent, true);
+            String plainText = buildPasswordResetEmailText(toEmail, resetUrl);
+            helper.setText(plainText, htmlContent);
 
             javaMailSender.send(mimeMessage);
 
@@ -151,13 +131,13 @@ public class EmailService {
      * 构建验证邮件 HTML 内容
      */
     private String buildVerificationEmailHtml(String email, String verificationUrl) {
-        // 提取token并构建HTTPS链接
         String token = extractTokenFromUrl(verificationUrl);
         String httpsUrl = buildEmailVerificationHttpUrl(token);
 
         try {
             String template = loadTemplate("email/verification-email.html");
             return template
+                    .replace("{{baseUrl}}", baseUrl)
                     .replace("{{verificationUrl}}", httpsUrl)
                     .replace("{{timestamp}}", LocalDateTime.now().toString());
         } catch (IOException e) {
@@ -219,11 +199,24 @@ public class EmailService {
         try {
             String template = loadTemplate("email/password-reset.html");
             return template
+                    .replace("{{baseUrl}}", baseUrl)
                     .replace("{{resetUrl}}", resetUrl)
                     .replace("{{timestamp}}", LocalDateTime.now().toString());
         } catch (IOException e) {
             log.error("Failed to load password reset email template", e);
             return buildFallbackEmail(resetUrl);
+        }
+    }
+
+    private String buildPasswordResetEmailText(String email, String resetUrl) {
+        try {
+            String template = loadTemplate("email/password-reset.txt");
+            return template
+                    .replace("{{resetUrl}}", resetUrl)
+                    .replace("{{timestamp}}", LocalDateTime.now().toString());
+        } catch (IOException e) {
+            log.error("Failed to load password reset email text template", e);
+            return "SafeVault - 重置您的密码\n\n请访问以下链接重置密码: " + resetUrl;
         }
     }
 
