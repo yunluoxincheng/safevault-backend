@@ -28,6 +28,9 @@ public class MailConfig {
     @Value("${spring.mail.password}")
     private String password;
 
+    @Value("${spring.mail.protocol:smtp}")
+    private String protocol;
+
     @Value("${spring.mail.properties.mail.smtp.auth:true}")
     private boolean auth;
 
@@ -59,27 +62,52 @@ public class MailConfig {
         mailSender.setUsername(username);
         mailSender.setPassword(password);
 
-        // 使用标准 SMTP 协议
-        mailSender.setProtocol("smtp");
+        String normalizedProtocol = protocol == null ? "smtp" : protocol.trim().toLowerCase();
+        if (!"smtps".equals(normalizedProtocol)) {
+            normalizedProtocol = "smtp";
+        }
+        mailSender.setProtocol(normalizedProtocol);
 
         // SMTP 属性配置
         Properties props = mailSender.getJavaMailProperties();
 
-        // 认证配置
-        props.put("mail.smtp.auth", String.valueOf(auth));
+        props.put("mail.transport.protocol", normalizedProtocol);
 
-        // STARTTLS 配置（端口 25 使用 STARTTLS）
-        props.put("mail.smtp.starttls.enable", String.valueOf(starttlsEnable));
-        props.put("mail.smtp.starttls.required", String.valueOf(starttlsRequired));
+        if ("smtps".equals(normalizedProtocol)) {
+            // 465 隐式 TLS：使用 mail.smtps.*，并移除 mail.smtp.* 避免属性冲突
+            props.remove("mail.smtp.auth");
+            props.remove("mail.smtp.starttls.enable");
+            props.remove("mail.smtp.starttls.required");
+            props.remove("mail.smtp.ssl.checkserveridentity");
+            props.remove("mail.smtp.ssl.trust");
+            props.remove("mail.smtp.connectiontimeout");
+            props.remove("mail.smtp.timeout");
+            props.remove("mail.smtp.writetimeout");
 
-        // SSL 配置
-        props.put("mail.smtp.ssl.checkserveridentity", "false");
-        props.put("mail.smtp.ssl.trust", "*");
+            props.put("mail.smtps.auth", String.valueOf(auth));
+            props.put("mail.smtps.ssl.enable", "true");
+            props.put("mail.smtps.ssl.checkserveridentity", "true");
+            props.put("mail.smtps.connectiontimeout", String.valueOf(connectionTimeout));
+            props.put("mail.smtps.timeout", String.valueOf(timeout));
+            props.put("mail.smtps.writetimeout", String.valueOf(writeTimeout));
+        } else {
+            // 普通 SMTP/STARTTLS：使用 mail.smtp.*
+            props.remove("mail.smtps.auth");
+            props.remove("mail.smtps.ssl.enable");
+            props.remove("mail.smtps.ssl.checkserveridentity");
+            props.remove("mail.smtps.connectiontimeout");
+            props.remove("mail.smtps.timeout");
+            props.remove("mail.smtps.writetimeout");
 
-        // 超时配置（毫秒）
-        props.put("mail.smtp.connectiontimeout", String.valueOf(connectionTimeout));
-        props.put("mail.smtp.timeout", String.valueOf(timeout));
-        props.put("mail.smtp.writetimeout", String.valueOf(writeTimeout));
+            props.put("mail.smtp.auth", String.valueOf(auth));
+            props.put("mail.smtp.starttls.enable", String.valueOf(starttlsEnable));
+            props.put("mail.smtp.starttls.required", String.valueOf(starttlsRequired));
+            props.put("mail.smtp.ssl.checkserveridentity", "false");
+            props.put("mail.smtp.ssl.trust", "*");
+            props.put("mail.smtp.connectiontimeout", String.valueOf(connectionTimeout));
+            props.put("mail.smtp.timeout", String.valueOf(timeout));
+            props.put("mail.smtp.writetimeout", String.valueOf(writeTimeout));
+        }
 
         // 调试模式
         props.put("mail.debug", String.valueOf(mailDebug));

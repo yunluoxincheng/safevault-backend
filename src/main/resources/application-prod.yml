@@ -19,6 +19,25 @@ spring:
         order_inserts: true
         order_updates: true
 
+  # Explicit production SMTP config to avoid profile inheritance ambiguity.
+  mail:
+    host: smtpdm.aliyun.com
+    port: 465
+    protocol: smtps
+    username: verify@mail.safevaultapp.top
+    password: ${MAIL_PASSWORD}
+    from: verify@mail.safevaultapp.top
+    properties:
+      "[mail.transport.protocol]": smtps
+      "[mail.smtps.auth]": true
+      "[mail.smtps.ssl.enable]": true
+      "[mail.smtps.ssl.checkserveridentity]": true
+      "[mail.debug]": true
+      "[mail.smtps.connectiontimeout]": 30000
+      "[mail.smtps.timeout]": 30000
+      "[mail.smtps.writetimeout]": 30000
+      "[mail.smtps.ssl.protocols]": TLSv1.2 TLSv1.3
+
 server:
   ssl:
     # Production SSL is terminated at Nginx reverse proxy.
