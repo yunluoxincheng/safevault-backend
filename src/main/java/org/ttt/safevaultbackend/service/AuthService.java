@@ -57,6 +57,8 @@ public class AuthService {
     private final EmailVerificationHistoryService verificationHistoryService;
     private final Argon2PasswordHasher argon2PasswordHasher;
     private final NonceService nonceService;
+    private final AuthTokenIssuer authTokenIssuer;
+    private final EmailVerificationLinkFactory emailVerificationLinkFactory;
 
     @Value("${email.verification.token-expiration-minutes:10}")
     private int tokenExpirationMinutes;
@@ -117,14 +119,13 @@ public class AuthService {
                 user.getX25519PublicKey() != null, user.getEd25519PublicKey() != null);
 
         // 生成 Token
-        String accessToken = tokenProvider.generateAccessToken(user.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+        AuthTokenIssuer.IssuedTokens tokens = authTokenIssuer.issueTokens(user.getUserId());
 
         return AuthResponse.builder()
                 .userId(user.getUserId())
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .expiresIn(tokenProvider.getAccessTokenExpirationSeconds())
+                .accessToken(tokens.accessToken())
+                .refreshToken(tokens.refreshToken())
+                .expiresIn(tokens.expiresInSeconds())
                 .build();
     }
 
@@ -146,14 +147,13 @@ public class AuthService {
         verifyLoginSignature(request.getUserId(), request.getDeviceId(), request.getSignature(), request.getTimestamp());
 
         // 生成 Token
-        String accessToken = tokenProvider.generateAccessToken(user.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+        AuthTokenIssuer.IssuedTokens tokens = authTokenIssuer.issueTokens(user.getUserId());
 
         return AuthResponse.builder()
                 .userId(user.getUserId())
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .expiresIn(tokenProvider.getAccessTokenExpirationSeconds())
+                .accessToken(tokens.accessToken())
+                .refreshToken(tokens.refreshToken())
+                .expiresIn(tokens.expiresInSeconds())
                 .build();
     }
 
@@ -170,16 +170,15 @@ public class AuthService {
         verifyUsernameLoginSignature(request.getUsername(), user.getDeviceId(), request.getSignature(), request.getTimestamp());
 
         // 生成 Token
-        String accessToken = tokenProvider.generateAccessToken(user.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+        AuthTokenIssuer.IssuedTokens tokens = authTokenIssuer.issueTokens(user.getUserId());
 
         return AuthResponse.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .displayName(user.getDisplayName())
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .expiresIn(tokenProvider.getAccessTokenExpirationSeconds())
+                .accessToken(tokens.accessToken())
+                .refreshToken(tokens.refreshToken())
+                .expiresIn(tokens.expiresInSeconds())
                 .build();
     }
 
@@ -201,14 +200,13 @@ public class AuthService {
         }
 
         // 生成新的访问令牌
-        String newAccessToken = tokenProvider.generateAccessToken(userId);
-        String newRefreshToken = tokenProvider.generateRefreshToken(userId);
+        AuthTokenIssuer.IssuedTokens tokens = authTokenIssuer.issueTokens(userId);
 
         return AuthResponse.builder()
                 .userId(userId)
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .expiresIn(tokenProvider.getAccessTokenExpirationSeconds())
+                .accessToken(tokens.accessToken())
+                .refreshToken(tokens.refreshToken())
+                .expiresIn(tokens.expiresInSeconds())
                 .build();
     }
 
@@ -299,7 +297,7 @@ public class AuthService {
         );
 
         // 构建验证链接（Deep Link）
-        String verificationUrl = "safevault://verify-email?token=" + token;
+        String verificationUrl = emailVerificationLinkFactory.buildRegistrationVerificationUrl(token);
 
         // 发送验证邮件
         boolean emailSent = emailService.sendVerificationEmail(request.getEmail(), verificationUrl);
@@ -469,7 +467,7 @@ public class AuthService {
         );
 
         // 构建验证链接
-        String verificationUrl = "safevault://verify-email?token=" + newToken;
+        String verificationUrl = emailVerificationLinkFactory.buildRegistrationVerificationUrl(newToken);
 
         // 发送验证邮件
         boolean emailSent = emailService.sendVerificationEmail(request.getEmail(), verificationUrl);
@@ -658,17 +656,16 @@ public class AuthService {
             userRepository.save(user);
 
             // 生成 Token
-            String accessToken = tokenProvider.generateAccessToken(user.getUserId());
-            String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+            AuthTokenIssuer.IssuedTokens tokens = authTokenIssuer.issueTokens(user.getUserId());
 
             return EmailLoginResponse.builder()
                     .userId(user.getUserId())
                     .email(user.getEmail())
                     .username(user.getUsername())
                     .displayName(user.getDisplayName())
-                    .accessToken(accessToken)
-                    .refreshToken(refreshToken)
-                    .expiresIn(tokenProvider.getAccessTokenExpirationSeconds())
+                    .accessToken(tokens.accessToken())
+                    .refreshToken(tokens.refreshToken())
+                    .expiresIn(tokens.expiresInSeconds())
                     .emailVerified(user.getEmailVerified())
                     .devices(devices)
                     .isNewDevice(true)
@@ -695,17 +692,16 @@ public class AuthService {
             userRepository.save(user);
 
             // 生成 Token
-            String accessToken = tokenProvider.generateAccessToken(user.getUserId());
-            String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+            AuthTokenIssuer.IssuedTokens tokens = authTokenIssuer.issueTokens(user.getUserId());
 
             return EmailLoginResponse.builder()
                     .userId(user.getUserId())
                     .email(user.getEmail())
                     .username(user.getUsername())
                     .displayName(user.getDisplayName())
-                    .accessToken(accessToken)
-                    .refreshToken(refreshToken)
-                    .expiresIn(tokenProvider.getAccessTokenExpirationSeconds())
+                    .accessToken(tokens.accessToken())
+                    .refreshToken(tokens.refreshToken())
+                    .expiresIn(tokens.expiresInSeconds())
                     .emailVerified(user.getEmailVerified())
                     .devices(devices)
                     .isNewDevice(false)
@@ -1038,8 +1034,7 @@ public class AuthService {
         log.info("保存私钥到 user_private_keys 表: userId={}, authTag长度={}", user.getUserId(), request.getAuthTag() != null ? request.getAuthTag().length() : 0);
 
         // 生成访问令牌和刷新令牌
-        String accessToken = tokenProvider.generateAccessToken(user.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+        AuthTokenIssuer.IssuedTokens tokens = authTokenIssuer.issueTokens(user.getUserId());
 
         log.info("用户完成注册: userId={}, email={}, username={}", user.getUserId(), user.getEmail(), user.getUsername());
 
@@ -1047,8 +1042,8 @@ public class AuthService {
                 .success(true)
                 .message("注册成功")
                 .userId(user.getUserId())
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
+                .accessToken(tokens.accessToken())
+                .refreshToken(tokens.refreshToken())
                 .displayName(user.getDisplayName())
                 .build();
     }

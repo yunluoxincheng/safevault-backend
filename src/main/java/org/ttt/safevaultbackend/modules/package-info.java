@@ -1,8 +1,8 @@
 /**
- * Logical module layer for modular-monolith organization.
+ * Logical module marker layer.
  *
- * <p>This package provides domain-oriented boundaries while keeping runtime
- * behavior unchanged. It is used for structure governance and gradual
- * extraction planning.
+ * <p>These packages document ownership areas only. The current implementation
+ * stays in the existing layered packages such as controller, service,
+ * repository, entity, dto, security, and websocket.
  */
 package org.ttt.safevaultbackend.modules;

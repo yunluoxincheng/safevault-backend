@@ -23,6 +23,7 @@ public class PrivateKeyService {
 
     private final UserPrivateKeyRepository privateKeyRepository;
     private final UserRepository userRepository;
+    private final PrivateKeyResponseMapper privateKeyResponseMapper;
 
     /**
      * 上传加密私钥
@@ -59,11 +60,7 @@ public class PrivateKeyService {
             privateKeyRepository.save(existingKey);
             log.info("更新私钥: userId={}, version={}", userId, request.getVersion());
 
-            return UploadPrivateKeyResponse.builder()
-                    .success(true)
-                    .version(existingKey.getVersion())
-                    .uploadedAt(existingKey.getUpdatedAt())
-                    .build();
+            return privateKeyResponseMapper.mapUploadResponse(existingKey, existingKey.getUpdatedAt());
         } else {
             // 创建新私钥记录
             UserPrivateKey newKey = UserPrivateKey.builder()
@@ -77,11 +74,7 @@ public class PrivateKeyService {
             privateKeyRepository.save(newKey);
             log.info("创建私钥: userId={}, version={}", userId, request.getVersion());
 
-            return UploadPrivateKeyResponse.builder()
-                    .success(true)
-                    .version(newKey.getVersion())
-                    .uploadedAt(newKey.getCreatedAt())
-                    .build();
+            return privateKeyResponseMapper.mapUploadResponse(newKey, newKey.getCreatedAt());
         }
     }
 
@@ -96,14 +89,7 @@ public class PrivateKeyService {
         UserPrivateKey key = privateKeyRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("PRIVATE_KEY_NOT_FOUND", "未找到私钥，请先上传"));
 
-        return PrivateKeyResponse.builder()
-                .encryptedPrivateKey(key.getEncryptedPrivateKey())
-                .iv(key.getIv())
-                .salt(key.getSalt())
-                .authTag(key.getAuthTag())
-                .version(key.getVersion())
-                .updatedAt(key.getUpdatedAt())
-                .build();
+        return privateKeyResponseMapper.mapPrivateKeyResponse(key);
     }
 
     /**

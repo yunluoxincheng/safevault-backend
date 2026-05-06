@@ -29,6 +29,7 @@ public class VaultService {
 
     private final UserVaultRepository vaultRepository;
     private final UserRepository userRepository;
+    private final VaultResponseMapper vaultResponseMapper;
 
     /**
      * 获取用户的密码库
@@ -40,7 +41,7 @@ public class VaultService {
         UserVault vault = vaultRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("UserVault", "userId", userId));
 
-        return mapToResponse(vault);
+        return vaultResponseMapper.mapToResponse(vault);
     }
 
     /**
@@ -75,7 +76,7 @@ public class VaultService {
         vault = vaultRepository.save(vault);
         log.info("初始化密码库: userId={}, vaultId={}", userId, vault.getVaultId());
 
-        return mapToResponse(vault);
+        return vaultResponseMapper.mapToResponse(vault);
     }
 
     /**
@@ -141,7 +142,7 @@ public class VaultService {
         }
 
         // 返回冲突信息，包含服务器数据供客户端合并
-        VaultResponse serverVaultResponse = mapToResponse(serverVault);
+        VaultResponse serverVaultResponse = vaultResponseMapper.mapToResponse(serverVault);
 
         return VaultSyncResponse.builder()
                 .success(false)
@@ -173,7 +174,7 @@ public class VaultService {
                 .serverVersion(vault.getVersion() - 1)
                 .clientVersion(request.getClientVersion())
                 .newVersion(vault.getVersion())
-                .vault(mapToResponse(vault))
+                .vault(vaultResponseMapper.mapToResponse(vault))
                 .lastSyncedAt(vault.getLastSyncedAt())
                 .build();
     }
@@ -201,7 +202,7 @@ public class VaultService {
                 .serverVersion(0L)
                 .clientVersion(request.getClientVersion())
                 .newVersion(1L)
-                .vault(mapToResponse(vault))
+                .vault(vaultResponseMapper.mapToResponse(vault))
                 .lastSyncedAt(vault.getLastSyncedAt())
                 .build();
     }
@@ -209,18 +210,4 @@ public class VaultService {
     /**
      * 将实体映射到响应对象
      */
-    private VaultResponse mapToResponse(UserVault vault) {
-        return VaultResponse.builder()
-                .vaultId(vault.getVaultId())
-                .userId(vault.getUserId())
-                .encryptedData(vault.getEncryptedData())
-                .dataIv(vault.getDataIv())
-                .dataAuthTag(vault.getDataAuthTag())
-                .salt(vault.getSalt())
-                .version(vault.getVersion())
-                .lastSyncedAt(vault.getLastSyncedAt())
-                .createdAt(vault.getCreatedAt())
-                .updatedAt(vault.getUpdatedAt())
-                .build();
-    }
 }

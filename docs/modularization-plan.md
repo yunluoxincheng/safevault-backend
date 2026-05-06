@@ -1,10 +1,11 @@
-# SafeVault Backend Modularization (Modular Monolith)
+# SafeVault Backend Module Markers
 
 ## Goal
 
-Refactor backend structure into clear modules without changing external API behavior.
+Record logical backend ownership without changing the current layered Spring
+Boot package structure.
 
-## Logical Modules
+## Logical Ownership Areas
 
 - `auth` - registration/login/token/identity verification
 - `vault` - encrypted vault and private key lifecycle
@@ -14,20 +15,29 @@ Refactor backend structure into clear modules without changing external API beha
 
 ## Current Mapping
 
-- Controllers remain in `controller/`, grouped by module ownership:
+- Controllers remain in `controller/`, with logical ownership grouped as:
   - auth: `AuthController`, `AccountController`, `UserController`, `VerificationWebController`
   - vault: `VaultController`
   - share/contact: `ContactShareController`, `FriendController`
-- Services/repositories/entities are preserved to avoid runtime behavior changes.
-- Module boundaries are documented via `modules/*/package-info.java`.
+- Services, repositories, entities, DTOs, security, and websocket code remain in
+  their existing top-level layered packages.
+- Module boundaries are documentation markers via `modules/*/package-info.java`.
 
 ## Dependency Direction
 
 `controller -> service -> repository/entity`
 
-Cross-module calls are allowed only via service interfaces/facades.
+Controllers delegate to services. Services coordinate repositories, entities,
+security helpers, Redis/email/WebSocket infrastructure, and transaction
+boundaries.
 
-## Incremental Extraction Path (Future)
+## Out of Scope for Current Boundary Refactor
+
+The active backend service-boundary refactor strengthens the existing layered
+structure. It does not move implementation classes into `modules/*` packages and
+does not perform a modular-monolith migration.
+
+## Possible Future Extraction Path
 
 1. Introduce module-local facades per domain.
 2. Move domain-specific DTOs to module subpackages.

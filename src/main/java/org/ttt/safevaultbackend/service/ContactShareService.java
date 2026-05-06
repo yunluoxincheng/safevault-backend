@@ -33,6 +33,7 @@ public class ContactShareService {
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final WebSocketService webSocketService;
+    private final ContactSharePayloadMapper payloadMapper;
 
     /**
      * 创建联系人分享
@@ -78,14 +79,14 @@ public class ContactShareService {
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(request.getExpiresInMinutes());
 
         // 构建加密数据
-        Map<String, String> encryptedData = buildEncryptedData(request);
+        Map<String, String> encryptedData = payloadMapper.buildEncryptedData(request);
 
         ContactShare contactShare = ContactShare.builder()
                 .shareId(shareId)
                 .fromUser(fromUser)
                 .toUser(toUser)
                 .passwordId(request.getPasswordId())
-                .encryptedData(serializeEncryptedData(encryptedData))
+                .encryptedData(payloadMapper.serializeEncryptedData(encryptedData))
                 .encryptionVersion(encryptionVersion)
                 .canView(request.getPermission().isCanView())
                 .canSave(request.getPermission().isCanSave())
@@ -133,34 +134,7 @@ public class ContactShareService {
         }
 
         // 解析加密数据
-        Map<String, String> encryptedData = deserializeEncryptedData(share.getEncryptedData());
-        PasswordData passwordData = PasswordData.builder()
-                .title(encryptedData.get("title"))
-                .username(encryptedData.get("username"))
-                .encryptedPassword(encryptedData.get("password"))
-                .url(encryptedData.get("url"))
-                .notes(encryptedData.get("notes"))
-                .build();
-
-        SharePermission permission = SharePermission.builder()
-                .canView(share.isCanView())
-                .canSave(share.isCanSave())
-                .isRevocable(share.isRevocable())
-                .build();
-
-        return ReceivedContactShareResponse.builder()
-                .shareId(share.getShareId())
-                .fromUserId(share.getFromUser().getUserId())
-                .fromDisplayName(share.getFromUser().getDisplayName())
-                .passwordId(share.getPasswordId())
-                .passwordData(passwordData)
-                .permission(permission)
-                .status(share.getStatus())
-                .createdAt(share.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
-                .expiresAt(share.getExpiresAt() != null ? share.getExpiresAt().toEpochSecond(ZoneOffset.UTC) : null)
-                .acceptedAt(share.getAcceptedAt() != null ? share.getAcceptedAt().toEpochSecond(ZoneOffset.UTC) : null)
-                .encryptionVersion(share.getEncryptionVersion())
-                .build();
+        return payloadMapper.mapToReceivedShareResponse(share);
     }
 
     /**
@@ -251,7 +225,7 @@ public class ContactShareService {
         );
 
         return shares.stream()
-                .map(this::mapToSentShareResponse)
+                .map(payloadMapper::mapToSentShareResponse)
                 .collect(Collectors.toList());
     }
 
@@ -266,7 +240,7 @@ public class ContactShareService {
         );
 
         return shares.stream()
-                .map(this::mapToReceivedShareResponse)
+                .map(payloadMapper::mapToReceivedShareResponse)
                 .collect(Collectors.toList());
     }
 
@@ -323,45 +297,12 @@ public class ContactShareService {
     /**
      * 构建加密数据
      */
-    private Map<String, String> buildEncryptedData(CreateContactShareRequest request) {
-        Map<String, String> data = new HashMap<>();
-        data.put("title", request.getTitle());
-        data.put("username", request.getUsername() != null ? request.getUsername() : "");
-        data.put("password", request.getEncryptedPassword());
-        data.put("url", request.getUrl() != null ? request.getUrl() : "");
-        data.put("notes", request.getNotes() != null ? request.getNotes() : "");
-        return data;
-    }
-
     /**
      * 序列化加密数据
      */
-    private String serializeEncryptedData(Map<String, String> data) {
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : data.entrySet()) {
-            if (sb.length() > 0) sb.append("|");
-            sb.append(entry.getKey()).append("=").append(entry.getValue());
-        }
-        return sb.toString();
-    }
-
     /**
      * 反序列化加密数据
      */
-    private Map<String, String> deserializeEncryptedData(String serialized) {
-        Map<String, String> data = new HashMap<>();
-        if (serialized != null && !serialized.isEmpty()) {
-            String[] pairs = serialized.split("\\|");
-            for (String pair : pairs) {
-                String[] kv = pair.split("=", 2);
-                if (kv.length == 2) {
-                    data.put(kv[0], kv[1]);
-                }
-            }
-        }
-        return data;
-    }
-
     /**
      * 发送分享通知
      */
@@ -394,53 +335,7 @@ public class ContactShareService {
     /**
      * 映射到发送分享响应
      */
-    private SentContactShareResponse mapToSentShareResponse(ContactShare share) {
-        Map<String, String> encryptedData = deserializeEncryptedData(share.getEncryptedData());
-
-        return SentContactShareResponse.builder()
-                .shareId(share.getShareId())
-                .toUserId(share.getToUser().getUserId())
-                .toDisplayName(share.getToUser().getDisplayName())
-                .passwordId(share.getPasswordId())
-                .passwordTitle(encryptedData.get("title"))
-                .status(share.getStatus())
-                .createdAt(share.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
-                .expiresAt(share.getExpiresAt() != null ? share.getExpiresAt().toEpochSecond(ZoneOffset.UTC) : null)
-                .encryptionVersion(share.getEncryptionVersion())
-                .build();
-    }
-
     /**
      * 映射到接收分享响应
      */
-    private ReceivedContactShareResponse mapToReceivedShareResponse(ContactShare share) {
-        Map<String, String> encryptedData = deserializeEncryptedData(share.getEncryptedData());
-        PasswordData passwordData = PasswordData.builder()
-                .title(encryptedData.get("title"))
-                .username(encryptedData.get("username"))
-                .encryptedPassword(encryptedData.get("password"))
-                .url(encryptedData.get("url"))
-                .notes(encryptedData.get("notes"))
-                .build();
-
-        SharePermission permission = SharePermission.builder()
-                .canView(share.isCanView())
-                .canSave(share.isCanSave())
-                .isRevocable(share.isRevocable())
-                .build();
-
-        return ReceivedContactShareResponse.builder()
-                .shareId(share.getShareId())
-                .fromUserId(share.getFromUser().getUserId())
-                .fromDisplayName(share.getFromUser().getDisplayName())
-                .passwordId(share.getPasswordId())
-                .passwordData(passwordData)
-                .permission(permission)
-                .status(share.getStatus())
-                .createdAt(share.getCreatedAt().toEpochSecond(ZoneOffset.UTC))
-                .expiresAt(share.getExpiresAt() != null ? share.getExpiresAt().toEpochSecond(ZoneOffset.UTC) : null)
-                .acceptedAt(share.getAcceptedAt() != null ? share.getAcceptedAt().toEpochSecond(ZoneOffset.UTC) : null)
-                .encryptionVersion(share.getEncryptionVersion())
-                .build();
-    }
 }
