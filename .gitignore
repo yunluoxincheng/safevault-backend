@@ -1,6 +1,7 @@
 HELP.md
 target/
 .m2repo/
+.m2-local/
 .maven-wrapper-home/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
