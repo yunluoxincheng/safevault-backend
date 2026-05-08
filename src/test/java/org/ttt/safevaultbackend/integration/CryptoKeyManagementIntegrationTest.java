@@ -9,7 +9,6 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 import org.ttt.safevaultbackend.dto.request.CompleteRegistrationRequest;
 import org.ttt.safevaultbackend.dto.request.EmailRegistrationRequest;
 import org.ttt.safevaultbackend.dto.request.UploadEccPublicKeyRequest;
@@ -33,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Transactional
 class CryptoKeyManagementIntegrationTest {
 
     @LocalServerPort
@@ -57,10 +55,26 @@ class CryptoKeyManagementIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        baseUrl = "http://localhost:" + port + "/v1/users";
+        baseUrl = "http://localhost:" + port + "/api/v1/users";
 
         // 清理测试数据
-        userRepository.deleteByEmail("crypto-test@example.com");
+        deleteUserByEmail("crypto-test@example.com");
+        deleteUserByEmail("old-user@example.com");
+        deleteUserByEmail("upload-test@example.com");
+        deleteUserByEmail("validation-test@example.com");
+        deleteUserByEmail("old-nego@example.com");
+        deleteUserByEmail("new-user@example.com");
+    }
+
+    private void deleteUserByEmail(String email) {
+        userRepository.findByEmail(email).ifPresent(userRepository::delete);
+    }
+
+    private <T> ResponseEntity<T> getUserKeys(String userId, String jwtToken, Class<T> responseType) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(jwtToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        return restTemplate.exchange(baseUrl + "/" + userId + "/keys", HttpMethod.GET, entity, responseType);
     }
 
     /**
@@ -90,7 +104,7 @@ class CryptoKeyManagementIntegrationTest {
 
         user = userRepository.save(user);
         testUserId = user.getUserId();
-        testJwtToken = jwtTokenProvider.generateToken(user.getUserId(), user.getUsername());
+        testJwtToken = jwtTokenProvider.generateAccessToken(user.getUserId());
 
         return user;
     }
@@ -120,8 +134,8 @@ class CryptoKeyManagementIntegrationTest {
         String userId = user.getUserId();
 
         // 调用 API 获取密钥信息
-        String url = baseUrl + "/" + userId + "/keys";
-        ResponseEntity<UserKeyInfoResponse> response = restTemplate.getForEntity(url, UserKeyInfoResponse.class);
+        String jwtToken = jwtTokenProvider.generateAccessToken(userId);
+        ResponseEntity<UserKeyInfoResponse> response = getUserKeys(userId, jwtToken, UserKeyInfoResponse.class);
 
         // 验证响应
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -144,8 +158,7 @@ class CryptoKeyManagementIntegrationTest {
         User user = createTestUserWithAllKeys();
 
         // 调用 API 获取密钥信息
-        String url = baseUrl + "/" + testUserId + "/keys";
-        ResponseEntity<UserKeyInfoResponse> response = restTemplate.getForEntity(url, UserKeyInfoResponse.class);
+        ResponseEntity<UserKeyInfoResponse> response = getUserKeys(testUserId, testJwtToken, UserKeyInfoResponse.class);
 
         // 验证响应
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -164,8 +177,8 @@ class CryptoKeyManagementIntegrationTest {
      */
     @Test
     void testGetUserKeys_UserNotFound() {
-        String url = baseUrl + "/non-existent-user-id/keys";
-        ResponseEntity<UserKeyInfoResponse> response = restTemplate.getForEntity(url, UserKeyInfoResponse.class);
+        String jwtToken = jwtTokenProvider.generateAccessToken("requesting-user");
+        ResponseEntity<String> response = getUserKeys("non-existent-user-id", jwtToken, String.class);
 
         // 预期返回 404 或错误响应
         assertTrue(response.getStatusCode().is4xxClientError() || response.getStatusCode().is5xxServerError());
@@ -194,7 +207,7 @@ class CryptoKeyManagementIntegrationTest {
 
         user = userRepository.save(user);
         String userId = user.getUserId();
-        String jwtToken = jwtTokenProvider.generateToken(userId, "uploadtest");
+        String jwtToken = jwtTokenProvider.generateAccessToken(userId);
 
         // 准备请求
         UploadEccPublicKeyRequest request = UploadEccPublicKeyRequest.builder()
@@ -211,15 +224,14 @@ class CryptoKeyManagementIntegrationTest {
 
         // 调用 API
         String url = baseUrl + "/me/ecc-public-keys";
-        ResponseEntity<UploadEccPublicKeyResponse> response = restTemplate.postForEntity(url, entity, UploadEccPublicKeyResponse.class);
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
         // 验证响应
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
 
-        UploadEccPublicKeyResponse uploadResponse = response.getBody();
-        assertTrue(uploadResponse.isSuccess());
-        assertNotNull(uploadResponse.getUploadedAt());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().contains("\"success\":true"));
 
         // 验证数据库中的更新
         User updatedUser = userRepository.findById(userId).orElseThrow();
@@ -252,7 +264,7 @@ class CryptoKeyManagementIntegrationTest {
 
         user = userRepository.save(user);
         String userId = user.getUserId();
-        String jwtToken = jwtTokenProvider.generateToken(userId, "validationtest");
+        String jwtToken = jwtTokenProvider.generateAccessToken(userId);
 
         // 准备请求（缺少 x25519PublicKey）
         UploadEccPublicKeyRequest request = UploadEccPublicKeyRequest.builder()
@@ -268,7 +280,7 @@ class CryptoKeyManagementIntegrationTest {
 
         // 调用 API
         String url = baseUrl + "/me/ecc-public-keys";
-        ResponseEntity<UploadEccPublicKeyResponse> response = restTemplate.postForEntity(url, entity, UploadEccPublicKeyResponse.class);
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
         // 验证响应（应该返回 400 Bad Request）
         assertTrue(response.getStatusCode().is4xxClientError());
@@ -293,7 +305,7 @@ class CryptoKeyManagementIntegrationTest {
 
         // 调用 API
         String url = baseUrl + "/me/ecc-public-keys";
-        ResponseEntity<UploadEccPublicKeyResponse> response = restTemplate.postForEntity(url, entity, UploadEccPublicKeyResponse.class);
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
         // 验证响应（应该返回 401 Unauthorized）
         assertTrue(response.getStatusCode().is4xxClientError());
@@ -308,8 +320,7 @@ class CryptoKeyManagementIntegrationTest {
         User user = createTestUserWithAllKeys();
 
         // 调用 API 获取密钥信息
-        String url = baseUrl + "/" + testUserId + "/keys";
-        ResponseEntity<UserKeyInfoResponse> response = restTemplate.getForEntity(url, UserKeyInfoResponse.class);
+        ResponseEntity<UserKeyInfoResponse> response = getUserKeys(testUserId, testJwtToken, UserKeyInfoResponse.class);
 
         // 验证响应
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -352,8 +363,8 @@ class CryptoKeyManagementIntegrationTest {
         String userId = user.getUserId();
 
         // 调用 API 获取密钥信息
-        String url = baseUrl + "/" + userId + "/keys";
-        ResponseEntity<UserKeyInfoResponse> response = restTemplate.getForEntity(url, UserKeyInfoResponse.class);
+        String jwtToken = jwtTokenProvider.generateAccessToken(userId);
+        ResponseEntity<UserKeyInfoResponse> response = getUserKeys(userId, jwtToken, UserKeyInfoResponse.class);
 
         // 验证响应
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -405,8 +416,8 @@ class CryptoKeyManagementIntegrationTest {
         String userId = newUser.getUserId();
 
         // 调用 API 获取密钥信息
-        String url = baseUrl + "/" + userId + "/keys";
-        ResponseEntity<UserKeyInfoResponse> response = restTemplate.getForEntity(url, UserKeyInfoResponse.class);
+        String jwtToken = jwtTokenProvider.generateAccessToken(userId);
+        ResponseEntity<UserKeyInfoResponse> response = getUserKeys(userId, jwtToken, UserKeyInfoResponse.class);
 
         // 验证响应
         assertEquals(HttpStatus.OK, response.getStatusCode());

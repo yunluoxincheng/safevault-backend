@@ -40,7 +40,7 @@ public class EmailVerificationHistory {
      * 用户 ID
      * 外键关联 users 表
      */
-    @Column(name = "user_id", nullable = false, length = 36)
+    @Column(name = "user_id", length = 36)
     private String userId;
 
     /**

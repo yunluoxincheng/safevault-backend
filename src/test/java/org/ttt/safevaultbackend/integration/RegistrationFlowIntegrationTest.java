@@ -3,6 +3,7 @@ package org.ttt.safevaultbackend.integration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.ttt.safevaultbackend.dto.request.CompleteRegistrationRequest;
@@ -13,10 +14,13 @@ import org.ttt.safevaultbackend.entity.User;
 import org.ttt.safevaultbackend.exception.BusinessException;
 import org.ttt.safevaultbackend.repository.UserRepository;
 import org.ttt.safevaultbackend.service.AuthService;
+import org.ttt.safevaultbackend.service.EmailService;
 
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 /**
  * 注册流程集成测试
@@ -33,8 +37,13 @@ class RegistrationFlowIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @MockBean
+    private EmailService emailService;
+
     @Test
     void completeRegistrationFlow_Success() {
+        when(emailService.sendVerificationEmail(anyString(), anyString())).thenReturn(true);
+
         // 步骤1: 发起注册
         EmailRegistrationRequest registerRequest = EmailRegistrationRequest.builder()
             .email("integration-test@example.com")

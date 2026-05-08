@@ -76,7 +76,7 @@ public class User {
     private Integer maxDevices = 5; // 默认最多5台设备同时登录
 
     // 分享用密钥对
-    @Column(name = "public_key", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "public_key", columnDefinition = "TEXT")
     private String publicKey; // RSA 公钥（协议版本 2.0）
 
     @Column(name = "private_key_encrypted", columnDefinition = "TEXT")

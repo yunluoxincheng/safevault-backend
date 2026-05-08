@@ -14,6 +14,7 @@ import org.ttt.safevaultbackend.dto.PendingUser;
 import org.ttt.safevaultbackend.entity.User;
 import org.ttt.safevaultbackend.exception.BusinessException;
 import org.ttt.safevaultbackend.exception.ResourceNotFoundException;
+import org.ttt.safevaultbackend.repository.UserPrivateKeyRepository;
 import org.ttt.safevaultbackend.repository.UserRepository;
 import org.ttt.safevaultbackend.security.JwtTokenProvider;
 
@@ -33,7 +34,13 @@ class AuthServiceRegistrationTest {
     private UserRepository userRepository;
 
     @Mock
+    private UserPrivateKeyRepository userPrivateKeyRepository;
+
+    @Mock
     private JwtTokenProvider tokenProvider;
+
+    @Mock
+    private AuthTokenIssuer authTokenIssuer;
 
     @Mock
     private PendingUserService pendingUserService;
@@ -149,8 +156,9 @@ class AuthServiceRegistrationTest {
 
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenProvider.generateAccessToken(anyString())).thenReturn("accessToken");
-        when(tokenProvider.generateRefreshToken(anyString())).thenReturn("refreshToken");
+        when(userPrivateKeyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(authTokenIssuer.issueTokens(anyString()))
+            .thenReturn(new AuthTokenIssuer.IssuedTokens("accessToken", "refreshToken", 900));
 
         // Act
         CompleteRegistrationResponse response = authService.completeRegistration(request);
@@ -176,6 +184,7 @@ class AuthServiceRegistrationTest {
             .userId(UUID.randomUUID().toString())
             .email(email)
             .username("testuser")
+            .emailVerified(true)
             .registrationStatus("ACTIVE") // 状态不是 EMAIL_VERIFIED
             .verifiedAt(LocalDateTime.now())
             .build();
@@ -205,6 +214,7 @@ class AuthServiceRegistrationTest {
             .userId(userId)
             .email(email)
             .username("testuser")
+            .emailVerified(true)
             .registrationStatus("EMAIL_VERIFIED")
             .verifiedAt(LocalDateTime.now().minusMinutes(10)) // 10分钟前验证，已超时（默认5分钟）
             .build();
@@ -238,7 +248,8 @@ class AuthServiceRegistrationTest {
             .userId(UUID.randomUUID().toString())
             .email(email)
             .username("testuser")
-            .registrationStatus("ACTIVE")
+            .emailVerified(true)
+            .registrationStatus("EMAIL_VERIFIED")
             .verifiedAt(LocalDateTime.now().minusMinutes(2))
             .passwordVerifier("existingVerifier") // 已设置密码验证器
             .build();
@@ -281,6 +292,7 @@ class AuthServiceRegistrationTest {
             .userId(UUID.randomUUID().toString())
             .email(email)
             .username("correctuser") // 用户名不匹配
+            .emailVerified(true)
             .registrationStatus("EMAIL_VERIFIED")
             .verifiedAt(LocalDateTime.now().minusMinutes(2))
             .build();

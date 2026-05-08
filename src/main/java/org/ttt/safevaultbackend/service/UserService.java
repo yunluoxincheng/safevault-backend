@@ -170,6 +170,7 @@ public class UserService {
         user.setX25519PublicKey(request.getX25519PublicKey());
         user.setEd25519PublicKey(request.getEd25519PublicKey());
         user.setKeyVersion(request.getKeyVersion());
+        user.setPublicKeysUpdatedAt(LocalDateTime.now());
         user = userRepository.save(user);
 
         return UploadEccPublicKeyResponse.builder()

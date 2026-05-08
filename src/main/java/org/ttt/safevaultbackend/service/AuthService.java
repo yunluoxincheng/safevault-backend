@@ -1027,7 +1027,7 @@ public class AuthService {
                 .encryptedPrivateKey(request.getEncryptedPrivateKey())
                 .iv(request.getPrivateKeyIv())
                 .salt(request.getSalt())
-                .authTag(request.getAuthTag())
+                .authTag(request.getAuthTag() != null ? request.getAuthTag() : "")
                 .version("v1")
                 .build();
         userPrivateKeyRepository.save(userPrivateKey);
