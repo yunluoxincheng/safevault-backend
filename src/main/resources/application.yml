@@ -59,7 +59,7 @@ server:
   servlet:
     context-path: /api
   ssl:
-    enabled: true
+    enabled: false
     key-store: classpath:keystore.p12
     key-store-password: ${KEYSTORE_PASSWORD}
     key-store-type: PKCS12
@@ -84,6 +84,7 @@ springdoc:
 
 # N8N Email Service Configuration (已废弃，改为直接使用 SMTP)
 app:
+  base-url: ${APP_BASE_URL:https://server.safevaultapp.top/api}
   n8n:
     webhook-url: frp-hat.com:49475
 

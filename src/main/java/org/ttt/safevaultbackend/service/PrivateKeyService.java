@@ -115,13 +115,18 @@ public class PrivateKeyService {
      * @return 如果客户端版本较旧则返回 true
      */
     private boolean isVersionOlder(String clientVersion, String serverVersion) {
+        if (clientVersion == null || serverVersion == null) {
+            throw new BusinessException("INVALID_VERSION", "版本号不能为空");
+        }
         try {
-            int c = Integer.parseInt(clientVersion.substring(1));
-            int s = Integer.parseInt(serverVersion.substring(1));
+            String cv = clientVersion.startsWith("v") ? clientVersion.substring(1) : clientVersion;
+            String sv = serverVersion.startsWith("v") ? serverVersion.substring(1) : serverVersion;
+            int c = Integer.parseInt(cv);
+            int s = Integer.parseInt(sv);
             return c < s;
-        } catch (Exception e) {
-            log.warn("版本号解析失败: clientVersion={}, serverVersion={}", clientVersion, serverVersion);
-            return false;
+        } catch (NumberFormatException e) {
+            throw new BusinessException("INVALID_VERSION",
+                    "版本号格式无效: clientVersion=" + clientVersion + ", serverVersion=" + serverVersion);
         }
     }
 }
